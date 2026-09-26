@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <meta
+    name="robots"
+    content="noindex, nofollow"
+  >
+
+  <title>
+    Admin Kampus Al-Qur'an
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="admin.css"
+  >
+</head>
+
+
+<body>
+
+
+<!-- ======================================================
+     HALAMAN LOGIN
+====================================================== -->
+
+<div
+  id="loginPage"
+  class="center-page"
+>
+
+  <div class="login-card">
+
+    <img
+      src="logo-kampus.png"
+      class="logo"
+      alt="Logo Kampus Al-Qur'an"
+    >
+
+
+    <h1>
+      Admin Kampus
+    </h1>
+
+    <p>
+      Kampus Al-Qur'an Widya Silahudin Shidiq
+    </p>
+
+
+    <form id="loginForm">
+
+      <label for="email">
+        Email
+      </label>
+
+      <input
+        type="email"
+        id="email"
+        placeholder="Email admin"
+        autocomplete="email"
+        required
+      >
+
+
+      <label for="password">
+        Password
+      </label>
+
+      <input
+        type="password"
+        id="password"
+        placeholder="Password"
+        autocomplete="current-password"
+        required
+      >
+
+
+      <button type="submit">
+        Masuk
+      </button>
+
+    </form>
+
+
+    <p id="loginMessage"></p>
+
+  </div>
+
+</div>
+
+
+
+<!-- ======================================================
+     ADMIN PANEL
+====================================================== -->
+
+<div
+  id="adminPage"
+  class="admin-page hidden"
+>
+
+
+  <!-- ====================================================
+       SIDEBAR
+  ==================================================== -->
+
+  <aside>
+
+    <div class="admin-brand">
+
+      <img
+        src="logo-kampus.png"
+        alt="Logo Kampus"
+      >
+
+      <div>
+
+        <b>
+          Admin Kampus
+        </b>
+
+        <small>
+          Widya Silahudin Shidiq
+        </small>
+
+      </div>
+
+    </div>
+
+
+    <button
+      type="button"
+      onclick="showPage('dashboard')"
+    >
+      🏠 Dashboard
+    </button>
+
+
+    <button
+      type="button"
+      onclick="showPage('kegiatan')"
+    >
+      📸 Kegiatan
+    </button>
+
+
+    <button
+      type="button"
+      onclick="showPage('produk')"
+    >
+      🛍 Produk
+    </button>
+
+
+    <button
+      type="button"
+      id="logoutButton"
+      class="logout"
+    >
+      🚪 Keluar
+    </button>
+
+  </aside>
+
+
+
+  <!-- ====================================================
+       ISI ADMIN
+  ==================================================== -->
+
+  <main>
+
+
+    <!-- ==================================================
+         DASHBOARD
+    ================================================== -->
+
+    <section
+      id="dashboard"
+      class="page"
+    >
+
+      <div class="page-heading">
+
+        <div>
+
+          <span class="page-label">
+            Admin Panel
+          </span>
+
+          <h1>
+            Dashboard
+          </h1>
+
+          <p>
+            Selamat datang di Admin Kampus Al-Qur'an
+            Widya Silahudin Shidiq.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="stats">
+
+        <div>
+
+          <span>
+            📸
+          </span>
+
+          <h2 id="jumlahKegiatan">
+            0
+          </h2>
+
+          <p>
+            Kegiatan
+          </p>
+
+        </div>
+
+
+        <div>
+
+          <span>
+            🛍
+          </span>
+
+          <h2 id="jumlahProduk">
+            0
+          </h2>
+
+          <p>
+            Produk
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="dashboard-info">
+
+        <h2>
+          Kelola Website
+        </h2>
+
+        <p>
+          Dari halaman admin ini kamu bisa menambah,
+          mengubah, dan menghapus dokumentasi kegiatan
+          maupun produk karya santri.
+        </p>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- ==================================================
+         KEGIATAN
+    ================================================== -->
+
+    <section
+      id="kegiatan"
+      class="page hidden"
+    >
+
+
+      <!-- JUDUL HALAMAN -->
+
+      <div class="page-heading">
+
+        <div>
+
+          <span class="page-label">
+            Dokumentasi
+          </span>
+
+          <h1 id="kegiatanPageTitle">
+            Tambah Kegiatan
+          </h1>
+
+          <p>
+            Tambahkan foto atau video kegiatan
+            Kampus Al-Qur'an.
+          </p>
+
+        </div>
+
+      </div>
+
+
+
+      <!-- ==================================================
+           FORM KEGIATAN
+      ================================================== -->
+
+      <form
+        id="kegiatanForm"
+        class="form-card"
+      >
+
+
+        <!--
+          INPUT TERSEMBUNYI.
+
+          Kosong = mode tambah.
+          Ada ID = mode edit.
+
+          Jangan dihapus karena nanti digunakan admin.js.
+        -->
+
+        <input
+          type="hidden"
+          id="editKegiatanId"
+          value=""
+        >
+
+
+        <input
+          type="hidden"
+          id="editKegiatanMediaLama"
+          value=""
+        >
+
+
+
+        <!-- MODE EDIT -->
+
+        <div
+          id="editKegiatanNotice"
+          class="edit-notice hidden"
+        >
+
+          <div>
+
+            <strong>
+              ✏️ Mode Edit Kegiatan
+            </strong>
+
+            <small>
+              Ubah data yang diperlukan lalu klik
+              Simpan Perubahan.
+            </small>
+
+          </div>
+
+
+          <button
+            type="button"
+            id="cancelEditKegiatan"
+            class="cancel-edit-button"
+          >
+            Batal Edit
+          </button>
+
+        </div>
+
+
+
+        <!-- JUDUL -->
+
+        <label for="judulKegiatan">
+          Judul Kegiatan
+        </label>
+
+        <input
+          id="judulKegiatan"
+          type="text"
+          placeholder="Contoh: Kegiatan Tahfidz"
+          minlength="3"
+          maxlength="80"
+          required
+        >
+
+        <small class="field-help">
+          Maksimal 80 karakter
+        </small>
+
+
+
+        <!-- TANGGAL -->
+
+        <label for="tanggalKegiatan">
+          Tanggal
+        </label>
+
+        <input
+          id="tanggalKegiatan"
+          type="date"
+        >
+
+
+
+        <!-- DESKRIPSI -->
+
+        <label for="deskripsiKegiatan">
+          Deskripsi
+        </label>
+
+        <textarea
+          id="deskripsiKegiatan"
+          placeholder="Ceritakan kegiatan para santri..."
+          maxlength="180"
+          rows="5"
+        ></textarea>
+
+
+        <div class="field-bottom">
+
+          <small class="field-help">
+            Maksimal 180 karakter
+          </small>
+
+          <small
+            id="kegiatanCharacterCount"
+            class="character-count"
+          >
+            0 / 180
+          </small>
+
+        </div>
+
+
+
+        <!-- FOTO / VIDEO -->
+
+        <label for="mediaKegiatan">
+          Foto / Video
+        </label>
+
+        <input
+          id="mediaKegiatan"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+        >
+
+
+        <small
+          id="kegiatanMediaHelp"
+          class="field-help"
+        >
+          Foto: JPG, PNG, WEBP.
+          Video: MP4 atau WEBM.
+        </small>
+
+
+
+        <!-- PREVIEW MEDIA LAMA SAAT EDIT -->
+
+        <div
+          id="currentKegiatanMedia"
+          class="current-media hidden"
+        >
+
+          <span class="current-media-title">
+            Media saat ini
+          </span>
+
+          <div
+            id="currentKegiatanMediaPreview"
+            class="current-media-preview"
+          >
+          </div>
+
+          <small>
+            Tidak perlu memilih file baru jika
+            foto/video tidak ingin diganti.
+          </small>
+
+        </div>
+
+
+
+        <!-- BUTTON -->
+
+        <div class="form-actions">
+
+          <button
+            type="submit"
+            id="submitKegiatanButton"
+          >
+            Simpan Kegiatan
+          </button>
+
+
+          <button
+            type="button"
+            id="cancelEditKegiatanBottom"
+            class="secondary-form-button hidden"
+          >
+            Batal
+          </button>
+
+        </div>
+
+
+        <p
+          id="kegiatanMessage"
+          class="form-message"
+        ></p>
+
+      </form>
+
+
+
+      <!-- ==================================================
+           KEGIATAN TERSIMPAN
+      ================================================== -->
+
+      <div class="saved-section-heading">
+
+        <div>
+
+          <span class="page-label">
+            Data Tersimpan
+          </span>
+
+          <h2 class="sub-title">
+            Kegiatan Tersimpan
+          </h2>
+
+        </div>
+
+        <button
+          type="button"
+          id="refreshKegiatan"
+          class="refresh-button"
+        >
+          ↻ Muat Ulang
+        </button>
+
+      </div>
+
+
+      <div
+        id="daftarKegiatan"
+        class="cards"
+      >
+      </div>
+
+    </section>
+
+
+
+    <!-- ==================================================
+         PRODUK
+    ================================================== -->
+
+    <section
+      id="produk"
+      class="page hidden"
+    >
+
+
+      <!-- JUDUL HALAMAN -->
+
+      <div class="page-heading">
+
+        <div>
+
+          <span class="page-label">
+            Karya Santri
+          </span>
+
+          <h1 id="produkPageTitle">
+            Tambah Produk
+          </h1>
+
+          <p>
+            Tambahkan produk karya santri yang
+            akan ditampilkan pada website.
+          </p>
+
+        </div>
+
+      </div>
+
+
+
+      <!-- ==================================================
+           FORM PRODUK
+      ================================================== -->
+
+      <form
+        id="produkForm"
+        class="form-card"
+      >
+
+
+        <!--
+          Kosong = tambah produk.
+          Ada ID = edit produk.
+        -->
+
+        <input
+          type="hidden"
+          id="editProdukId"
+          value=""
+        >
+
+
+        <input
+          type="hidden"
+          id="editProdukFotoLama"
+          value=""
+        >
+
+
+
+        <!-- MODE EDIT -->
+
+        <div
+          id="editProdukNotice"
+          class="edit-notice hidden"
+        >
+
+          <div>
+
+            <strong>
+              ✏️ Mode Edit Produk
+            </strong>
+
+            <small>
+              Ubah data yang diperlukan lalu klik
+              Simpan Perubahan.
+            </small>
+
+          </div>
+
+
+          <button
+            type="button"
+            id="cancelEditProduk"
+            class="cancel-edit-button"
+          >
+            Batal Edit
+          </button>
+
+        </div>
+
+
+
+        <!-- NAMA PRODUK -->
+
+        <label for="namaProduk">
+          Nama Produk
+        </label>
+
+        <input
+          id="namaProduk"
+          type="text"
+          placeholder="Contoh: Buku Karya Santri"
+          minlength="2"
+          maxlength="60"
+          required
+        >
+
+
+        <small class="field-help">
+          Maksimal 60 karakter
+        </small>
+
+
+
+        <!-- KATEGORI -->
+
+        <label for="kategoriProduk">
+          Kategori
+        </label>
+
+        <select
+          id="kategoriProduk"
+          required
+        >
+
+          <option value="buku">
+            Buku
+          </option>
+
+          <option value="pakaian">
+            Pakaian
+          </option>
+
+          <option value="tas">
+            Tas
+          </option>
+
+          <option value="kerajinan">
+            Kerajinan
+          </option>
+
+          <option value="lainnya">
+            Lainnya
+          </option>
+
+        </select>
+
+
+
+        <!-- HARGA -->
+
+        <label for="hargaProduk">
+          Harga
+        </label>
+
+        <input
+          id="hargaProduk"
+          type="number"
+          min="0"
+          max="100000000"
+          step="1000"
+          inputmode="numeric"
+          placeholder="Contoh: 45000"
+          required
+        >
+
+
+        <small class="field-help">
+          Maksimal Rp100.000.000
+        </small>
+
+
+
+        <!-- STOK -->
+
+        <label for="stokProduk">
+          Stok
+        </label>
+
+        <input
+          id="stokProduk"
+          type="number"
+          min="0"
+          max="99999"
+          step="1"
+          inputmode="numeric"
+          value="1"
+          required
+        >
+
+
+        <small class="field-help">
+          Maksimal 99.999 barang
+        </small>
+
+
+
+        <!-- DESKRIPSI -->
+
+        <label for="deskripsiProduk">
+          Deskripsi
+        </label>
+
+        <textarea
+          id="deskripsiProduk"
+          placeholder="Jelaskan produk karya santri..."
+          maxlength="140"
+          rows="5"
+        ></textarea>
+
+
+        <div class="field-bottom">
+
+          <small class="field-help">
+            Maksimal 140 karakter
+          </small>
+
+          <small
+            id="produkCharacterCount"
+            class="character-count"
+          >
+            0 / 140
+          </small>
+
+        </div>
+
+
+
+        <!-- FOTO PRODUK -->
+
+        <label for="fotoProduk">
+          Foto Produk
+        </label>
+
+        <input
+          id="fotoProduk"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+        >
+
+
+        <small
+          id="produkFotoHelp"
+          class="field-help"
+        >
+          Gunakan JPG, PNG, atau WEBP.
+        </small>
+
+
+
+        <!-- FOTO LAMA SAAT EDIT -->
+
+        <div
+          id="currentProdukMedia"
+          class="current-media hidden"
+        >
+
+          <span class="current-media-title">
+            Foto saat ini
+          </span>
+
+          <div
+            id="currentProdukMediaPreview"
+            class="current-media-preview"
+          >
+          </div>
+
+          <small>
+            Tidak perlu memilih foto baru jika
+            foto produk tidak ingin diganti.
+          </small>
+
+        </div>
+
+
+
+        <!-- BUTTON -->
+
+        <div class="form-actions">
+
+          <button
+            type="submit"
+            id="submitProdukButton"
+          >
+            Simpan Produk
+          </button>
+
+
+          <button
+            type="button"
+            id="cancelEditProdukBottom"
+            class="secondary-form-button hidden"
+          >
+            Batal
+          </button>
+
+        </div>
+
+
+        <p
+          id="produkMessage"
+          class="form-message"
+        ></p>
+
+      </form>
+
+
+
+      <!-- ==================================================
+           PRODUK TERSIMPAN
+      ================================================== -->
+
+      <div class="saved-section-heading">
+
+        <div>
+
+          <span class="page-label">
+            Data Tersimpan
+          </span>
+
+          <h2 class="sub-title">
+            Produk Tersimpan
+          </h2>
+
+        </div>
+
+
+        <button
+          type="button"
+          id="refreshProduk"
+          class="refresh-button"
+        >
+          ↻ Muat Ulang
+        </button>
+
+      </div>
+
+
+      <div
+        id="daftarProduk"
+        class="cards"
+      >
+      </div>
+
+    </section>
+
+
+  </main>
+
+</div>
+
+
+
+<!-- ======================================================
+     MODAL KONFIRMASI HAPUS
+====================================================== -->
+
+<div
+  id="deleteModal"
+  class="delete-modal hidden"
+>
+
+  <div
+    id="deleteModalBackground"
+    class="delete-modal-background"
+  >
+  </div>
+
+
+  <div class="delete-modal-card">
+
+    <div class="delete-modal-icon">
+      🗑️
+    </div>
+
+
+    <h2>
+      Hapus Data?
+    </h2>
+
+
+    <p id="deleteModalText">
+      Data yang sudah dihapus tidak dapat
+      dikembalikan.
+    </p>
+
+
+    <div class="delete-modal-actions">
+
+      <button
+        type="button"
+        id="cancelDeleteButton"
+        class="delete-cancel-button"
+      >
+        Batal
+      </button>
+
+
+      <button
+        type="button"
+        id="confirmDeleteButton"
+        class="delete-confirm-button"
+      >
+        Ya, Hapus
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<!-- ======================================================
+     SUPABASE
+====================================================== -->
+
+<script
+  src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+></script>
+
+
+<!--
+  JANGAN HAPUS FILE INI.
+
+  Project URL + Publishable Key Supabase
+  kamu tetap berada di supabase-config.js.
+-->
+
+<script src="supabase-config.js"></script>
+
+
+
+<!-- ======================================================
+     ADMIN JAVASCRIPT
+====================================================== -->
+
+<script src="admin.js"></script>
+
+
+</body>
+
+</html>
