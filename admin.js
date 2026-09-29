@@ -1,38 +1,24 @@
 /* =========================================================
-   KAMPUS AL-QUR'AN WIDYA SILAHUDIN SHIDIQ
-   ADMIN.JS
-
-   PENTING:
-   supabaseClient SUDAH dibuat di supabase-config.js
-   Jadi JANGAN membuat const supabaseClient lagi di sini.
+   KAMPUS AL-QUR'AN WIDYA SILAHUDIN SIDIQ
+   ADMIN DASHBOARD
 ========================================================= */
 
 
 /* =========================================================
-   KONFIGURASI
-========================================================= */
-
-const STORAGE_BUCKET = "kampus-media";
-
-const ADMIN_LIMITS = {
-    kegiatanJudul: 80,
-    kegiatanDeskripsi: 180,
-    produkNama: 60,
-    produkDeskripsi: 140,
-    hargaMaksimal: 100000000,
-    stokMaksimal: 99999,
-    kegiatanFileMaksimal: 50 * 1024 * 1024,
-    produkFileMaksimal: 10 * 1024 * 1024
-};
-
-
-/* =========================================================
-   DATA SEMENTARA
+   GLOBAL DATA
 ========================================================= */
 
 let kegiatanData = [];
 let produkData = [];
+let pesananData = [];
+
 let pendingDelete = null;
+
+let currentKegiatanFoto = "";
+let currentProdukFoto = "";
+
+let kegiatanFileBaru = null;
+let produkFileBaru = null;
 
 
 /* =========================================================
@@ -45,34 +31,13 @@ function el(id) {
 
 
 function escapeHTML(value) {
+
     return String(value ?? "")
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
-}
-
-
-function setMessage(id, text, type = "") {
-
-    const target = el(id);
-
-    if (!target) {
-        return;
-    }
-
-    target.textContent = text || "";
-
-    target.classList.remove(
-        "success",
-        "error",
-        "loading"
-    );
-
-    if (type) {
-        target.classList.add(type);
-    }
 }
 
 
@@ -92,106 +57,158 @@ function formatRupiah(value) {
 function formatTanggal(value) {
 
     if (!value) {
-        return "Tanpa tanggal";
+        return "-";
     }
 
-    const date = new Date(
-        value + "T00:00:00"
-    );
+    try {
 
-    if (Number.isNaN(date.getTime())) {
+        const date =
+            new Date(
+                String(value).includes("T")
+                    ? value
+                    : value + "T00:00:00"
+            );
+
+        return new Intl.DateTimeFormat(
+            "id-ID",
+            {
+                day: "numeric",
+                month: "long",
+                year: "numeric"
+            }
+        ).format(date);
+
+    } catch {
+
         return value;
+    }
+}
+
+
+function formatTanggalWaktu(value) {
+
+    if (!value) {
+        return "-";
+    }
+
+    const date =
+        new Date(value);
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+        return String(value);
     }
 
     return new Intl.DateTimeFormat(
         "id-ID",
         {
-            day: "numeric",
+            day: "2-digit",
             month: "long",
-            year: "numeric"
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
         }
     ).format(date);
 }
 
 
-function isVideo(url) {
+function isVideoFile(url = "") {
 
-    return /\.(mp4|webm|mov)(\?|#|$)/i.test(
-        String(url || "")
+    const cleanURL =
+        String(url)
+            .split("?")[0]
+            .toLowerCase();
+
+    return (
+        cleanURL.endsWith(".mp4") ||
+        cleanURL.endsWith(".webm") ||
+        cleanURL.endsWith(".mov") ||
+        cleanURL.endsWith(".m4v")
     );
 }
 
 
-/* =========================================================
-   NAVIGASI ADMIN
-========================================================= */
+function normalizeWhatsApp(value) {
 
-function showPage(pageId) {
+    let number =
+        String(value || "")
+            .replace(/\D/g, "");
 
-    document
-        .querySelectorAll(".page")
-        .forEach(page => {
-            page.classList.add("hidden");
-        });
-
-    const target = el(pageId);
-
-    if (target) {
-        target.classList.remove("hidden");
+    if (!number) {
+        return "";
     }
 
-    document
-        .querySelectorAll("aside > button")
-        .forEach(button => {
+    if (
+        number.startsWith("0")
+    ) {
 
-            button.classList.remove("active");
+        number =
+            "62" +
+            number.slice(1);
+    }
 
-            const onclick =
-                button.getAttribute("onclick") || "";
+    else if (
+        number.startsWith("8")
+    ) {
 
-            if (
-                onclick.includes(
-                    "'" + pageId + "'"
-                )
-            ) {
-                button.classList.add("active");
-            }
-        });
+        number =
+            "62" +
+            number;
+    }
 
-    window.scrollTo({
-        top: 0,
-        behavior: "smooth"
-    });
+    return number;
+}
+
+
+function setButtonLoading(
+    button,
+    loading,
+    normalText,
+    loadingText
+) {
+
+    if (!button) {
+        return;
+    }
+
+    button.disabled =
+        loading;
+
+    button.textContent =
+        loading
+            ? loadingText
+            : normalText;
 }
 
 
 /* =========================================================
-   LOGIN / ADMIN PAGE
+   AUTH UI
 ========================================================= */
 
-function showLoginPage() {
+function showLogin() {
 
-    if (el("loginPage")) {
-        el("loginPage").classList.remove("hidden");
-    }
+    el("loginSection")
+        ?.classList
+        .remove("hidden");
 
-    if (el("adminPage")) {
-        el("adminPage").classList.add("hidden");
-    }
+    el("adminApp")
+        ?.classList
+        .add("hidden");
 }
 
 
-function showAdminPage() {
+function showAdmin() {
 
-    if (el("loginPage")) {
-        el("loginPage").classList.add("hidden");
-    }
+    el("loginSection")
+        ?.classList
+        .add("hidden");
 
-    if (el("adminPage")) {
-        el("adminPage").classList.remove("hidden");
-    }
-
-    showPage("dashboard");
+    el("adminApp")
+        ?.classList
+        .remove("hidden");
 }
 
 
@@ -199,44 +216,9 @@ function showAdminPage() {
    LOGIN
 ========================================================= */
 
-async function checkLogin() {
+const loginForm =
+    el("loginForm");
 
-    try {
-
-        const {
-            data,
-            error
-        } = await supabaseClient.auth.getSession();
-
-        if (error) {
-            throw error;
-        }
-
-        if (data?.session) {
-
-            showAdminPage();
-
-            await loadAll();
-
-        } else {
-
-            showLoginPage();
-
-        }
-
-    } catch (error) {
-
-        console.error(
-            "Gagal mengecek login:",
-            error
-        );
-
-        showLoginPage();
-    }
-}
-
-
-const loginForm = el("loginForm");
 
 if (loginForm) {
 
@@ -247,16 +229,50 @@ if (loginForm) {
             event.preventDefault();
 
             const email =
-                el("email").value.trim();
+                el("loginEmail")
+                    ?.value
+                    .trim();
 
             const password =
-                el("password").value;
+                el("loginPassword")
+                    ?.value;
 
-            setMessage(
-                "loginMessage",
-                "⏳ Sedang masuk...",
-                "loading"
+            const button =
+                el("loginButton");
+
+            const message =
+                el("loginMessage");
+
+
+            if (
+                !email ||
+                !password
+            ) {
+
+                if (message) {
+
+                    message.textContent =
+                        "Email dan password wajib diisi.";
+                }
+
+                return;
+            }
+
+
+            setButtonLoading(
+                button,
+                true,
+                "Masuk Dashboard",
+                "Memeriksa..."
             );
+
+
+            if (message) {
+
+                message.textContent =
+                    "";
+            }
+
 
             try {
 
@@ -271,42 +287,63 @@ if (loginForm) {
                             password
                         });
 
+
                 if (error) {
                     throw error;
                 }
 
-                if (!data?.user) {
+
+                if (
+                    !data?.session
+                ) {
+
                     throw new Error(
-                        "Login gagal."
+                        "Login gagal. Session tidak ditemukan."
                     );
                 }
 
-                setMessage(
-                    "loginMessage",
-                    ""
+
+                if (message) {
+
+                    message.textContent =
+                        "";
+                }
+
+
+                showAdmin();
+
+                showPage(
+                    "dashboard"
                 );
 
-                showAdminPage();
-
                 await loadAll();
+
 
             } catch (error) {
 
                 console.error(
-                    "Login gagal:",
+                    "Login error:",
                     error
                 );
 
-                setMessage(
-                    "loginMessage",
-                    "❌ " +
-                    (
+
+                if (message) {
+
+                    message.textContent =
                         error.message ||
-                        "Email atau password salah."
-                    ),
-                    "error"
+                        "Email atau password salah.";
+                }
+
+            } finally {
+
+                setButtonLoading(
+                    button,
+                    false,
+                    "Masuk Dashboard",
+                    "Memeriksa..."
                 );
             }
+
         }
     );
 }
@@ -316,220 +353,330 @@ if (loginForm) {
    LOGOUT
 ========================================================= */
 
-const logoutButton = el("logoutButton");
-
-if (logoutButton) {
-
-    logoutButton.addEventListener(
+el("logoutButton")
+    ?.addEventListener(
         "click",
         async () => {
 
+            const confirmed =
+                confirm(
+                    "Keluar dari Admin Dashboard?"
+                );
+
+            if (!confirmed) {
+                return;
+            }
+
+
             try {
 
-                await supabaseClient.auth.signOut();
+                await supabaseClient
+                    .auth
+                    .signOut();
 
             } catch (error) {
 
-                console.error(error);
-
+                console.error(
+                    "Logout error:",
+                    error
+                );
             }
 
-            location.reload();
+
+            kegiatanData = [];
+            produkData = [];
+            pesananData = [];
+
+            showLogin();
+
+
+            if (el("loginPassword")) {
+
+                el("loginPassword")
+                    .value = "";
+            }
+
         }
     );
-}
 
 
 /* =========================================================
-   CHARACTER COUNTER
+   PAGE NAVIGATION
 ========================================================= */
 
-function updateKegiatanCounter() {
+function showPage(pageId) {
 
-    const textarea =
-        el("deskripsiKegiatan");
+    document
+        .querySelectorAll(
+            ".page"
+        )
+        .forEach(
+            page => {
 
-    const counter =
-        el("kegiatanCharacterCount");
-
-    if (!textarea || !counter) {
-        return;
-    }
-
-    counter.textContent =
-        textarea.value.length +
-        " / " +
-        ADMIN_LIMITS.kegiatanDeskripsi;
-}
-
-
-function updateProdukCounter() {
-
-    const textarea =
-        el("deskripsiProduk");
-
-    const counter =
-        el("produkCharacterCount");
-
-    if (!textarea || !counter) {
-        return;
-    }
-
-    counter.textContent =
-        textarea.value.length +
-        " / " +
-        ADMIN_LIMITS.produkDeskripsi;
-}
-
-
-if (el("deskripsiKegiatan")) {
-
-    el("deskripsiKegiatan")
-        .addEventListener(
-            "input",
-            updateKegiatanCounter
-        );
-}
-
-
-if (el("deskripsiProduk")) {
-
-    el("deskripsiProduk")
-        .addEventListener(
-            "input",
-            updateProdukCounter
-        );
-}
-
-
-/* =========================================================
-   FILE
-========================================================= */
-
-function createFileName(file) {
-
-    const original =
-        String(file.name || "file");
-
-    let extension = "";
-
-    if (original.includes(".")) {
-
-        extension =
-            original
-                .split(".")
-                .pop()
-                .toLowerCase()
-                .replace(
-                    /[^a-z0-9]/g,
-                    ""
+                page.classList.add(
+                    "hidden"
                 );
+            }
+        );
+
+
+    el(pageId)
+        ?.classList
+        .remove("hidden");
+
+
+    document
+        .querySelectorAll(
+            ".nav-button"
+        )
+        .forEach(
+            button => {
+
+                button.classList
+                    .toggle(
+                        "active",
+                        button.dataset.page ===
+                        pageId
+                    );
+            }
+        );
+
+
+    el("sidebar")
+        ?.classList
+        .remove("open");
+
+
+    if (
+        pageId ===
+        "dashboard"
+    ) {
+
+        updateDashboard();
     }
 
-    if (!extension) {
 
-        const map = {
-            "image/jpeg": "jpg",
-            "image/png": "png",
-            "image/webp": "webp",
-            "video/mp4": "mp4",
-            "video/webm": "webm"
-        };
+    if (
+        pageId ===
+        "pesanan"
+    ) {
 
-        extension =
-            map[file.type] || "bin";
+        loadPesanan();
     }
-
-    const random =
-        typeof crypto !== "undefined" &&
-        typeof crypto.randomUUID === "function"
-            ? crypto.randomUUID()
-            : Math.random()
-                .toString(36)
-                .slice(2);
-
-    return (
-        Date.now() +
-        "-" +
-        random +
-        "." +
-        extension
-    );
 }
 
+
+/* =========================================================
+   MOBILE SIDEBAR
+========================================================= */
+
+el("mobileSidebarButton")
+    ?.addEventListener(
+        "click",
+        () => {
+
+            el("sidebar")
+                ?.classList
+                .toggle("open");
+        }
+    );
+
+
+document.addEventListener(
+    "click",
+    event => {
+
+        const sidebar =
+            el("sidebar");
+
+        const button =
+            el("mobileSidebarButton");
+
+
+        if (
+            window.innerWidth > 900 ||
+            !sidebar ||
+            !sidebar.classList.contains(
+                "open"
+            )
+        ) {
+            return;
+        }
+
+
+        if (
+            sidebar.contains(
+                event.target
+            ) ||
+            button?.contains(
+                event.target
+            )
+        ) {
+            return;
+        }
+
+
+        sidebar.classList
+            .remove("open");
+    }
+);
+
+
+/* =========================================================
+   MODAL HELPER
+========================================================= */
+
+function openModal(id) {
+
+    el(id)
+        ?.classList
+        .remove("hidden");
+
+    document.body.style.overflow =
+        "hidden";
+}
+
+
+function closeModal(id) {
+
+    el(id)
+        ?.classList
+        .add("hidden");
+
+    document.body.style.overflow =
+        "";
+}
+
+
+/* =========================================================
+   STORAGE UPLOAD
+========================================================= */
 
 async function uploadFile(
-    file,
-    folder
+    bucket,
+    folder,
+    file
 ) {
 
-    const path =
-        folder +
-        "/" +
-        createFileName(file);
+    if (!file) {
+        return "";
+    }
+
+
+    const extension =
+        file.name
+            .split(".")
+            .pop()
+            ?.toLowerCase() ||
+        "file";
+
+
+    const random =
+        Math.random()
+            .toString(36)
+            .slice(2);
+
+
+    const fileName =
+        `${folder}/${Date.now()}-${random}.${extension}`;
+
 
     const {
         error
     } =
         await supabaseClient
             .storage
-            .from(STORAGE_BUCKET)
+            .from(bucket)
             .upload(
-                path,
+                fileName,
                 file,
                 {
-                    cacheControl: "3600",
-                    upsert: false
+                    cacheControl:
+                        "3600",
+
+                    upsert:
+                        false
                 }
             );
+
 
     if (error) {
         throw error;
     }
+
 
     const {
         data
     } =
         supabaseClient
             .storage
-            .from(STORAGE_BUCKET)
-            .getPublicUrl(path);
+            .from(bucket)
+            .getPublicUrl(
+                fileName
+            );
 
-    if (!data?.publicUrl) {
 
-        await removeStoragePath(path);
-
-        throw new Error(
-            "URL file gagal dibuat."
-        );
-    }
-
-    return {
-        publicUrl: data.publicUrl,
-        filePath: path
-    };
+    return (
+        data?.publicUrl ||
+        ""
+    );
 }
 
 
-async function removeStoragePath(path) {
+/* =========================================================
+   HAPUS FILE STORAGE BERDASARKAN URL
+========================================================= */
 
-    if (!path) {
+async function deleteStorageFileFromURL(
+    bucket,
+    url
+) {
+
+    if (!url) {
         return;
     }
 
+
     try {
+
+        const marker =
+            `/storage/v1/object/public/${bucket}/`;
+
+
+        if (
+            !url.includes(marker)
+        ) {
+            return;
+        }
+
+
+        const path =
+            decodeURIComponent(
+                url.split(marker)[1]
+                    .split("?")[0]
+            );
+
+
+        if (!path) {
+            return;
+        }
+
 
         const {
             error
         } =
             await supabaseClient
                 .storage
-                .from(STORAGE_BUCKET)
-                .remove([path]);
+                .from(bucket)
+                .remove([
+                    path
+                ]);
+
 
         if (error) {
+
             console.warn(
-                "File storage tidak dapat dihapus:",
+                "Gagal menghapus file storage:",
                 error
             );
         }
@@ -537,148 +684,88 @@ async function removeStoragePath(path) {
     } catch (error) {
 
         console.warn(
-            "Gagal menghapus file:",
+            "Delete storage error:",
             error
         );
     }
 }
 
 
-function getStoragePath(url) {
+/* =========================================================
+   KEGIATAN - OPEN MODAL
+========================================================= */
 
-    if (!url) {
-        return null;
-    }
+el("openKegiatanModal")
+    ?.addEventListener(
+        "click",
+        () => {
 
-    try {
+            resetKegiatanForm();
 
-        const decoded =
-            decodeURIComponent(url);
+            if (
+                el("kegiatanModalTitle")
+            ) {
 
-        const marker =
-            "/storage/v1/object/public/" +
-            STORAGE_BUCKET +
-            "/";
+                el("kegiatanModalTitle")
+                    .textContent =
+                    "Tambah Kegiatan";
+            }
 
-        const index =
-            decoded.indexOf(marker);
 
-        if (index === -1) {
-            return null;
+            openModal(
+                "kegiatanModal"
+            );
         }
-
-        return decoded
-            .slice(
-                index + marker.length
-            )
-            .split("?")[0];
-
-    } catch {
-
-        return null;
-    }
-}
+    );
 
 
-async function removeStorageByUrl(url) {
+el("closeKegiatanModal")
+    ?.addEventListener(
+        "click",
+        () => {
 
-    const path =
-        getStoragePath(url);
-
-    if (path) {
-        await removeStoragePath(path);
-    }
-}
+            closeModal(
+                "kegiatanModal"
+            );
+        }
+    );
 
 
 /* =========================================================
-   VALIDASI FILE KEGIATAN
+   RESET KEGIATAN
 ========================================================= */
 
-function validateKegiatanFile(
-    file,
-    wajib
-) {
+function resetKegiatanForm() {
 
-    if (!file) {
+    el("kegiatanForm")
+        ?.reset();
 
-        if (wajib) {
-            throw new Error(
-                "Pilih foto atau video kegiatan."
-            );
-        }
 
-        return;
+    if (el("kegiatanId")) {
+
+        el("kegiatanId")
+            .value = "";
     }
 
-    const allowed = [
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "video/mp4",
-        "video/webm"
-    ];
 
-    if (!allowed.includes(file.type)) {
+    currentKegiatanFoto =
+        "";
 
-        throw new Error(
-            "Media kegiatan harus JPG, PNG, WEBP, MP4, atau WEBM."
-        );
-    }
-
-    if (
-        file.size >
-        ADMIN_LIMITS.kegiatanFileMaksimal
-    ) {
-
-        throw new Error(
-            "Ukuran media kegiatan maksimal 50 MB."
-        );
-    }
-}
+    kegiatanFileBaru =
+        null;
 
 
-/* =========================================================
-   VALIDASI FILE PRODUK
-========================================================= */
+    const preview =
+        el("kegiatanPreview");
 
-function validateProdukFile(
-    file,
-    wajib
-) {
 
-    if (!file) {
+    if (preview) {
 
-        if (wajib) {
-            throw new Error(
-                "Pilih foto produk."
-            );
-        }
+        preview.innerHTML =
+            "";
 
-        return;
-    }
-
-    const allowed = [
-        "image/jpeg",
-        "image/png",
-        "image/webp"
-    ];
-
-    if (!allowed.includes(file.type)) {
-
-        throw new Error(
-            "Foto produk harus JPG, PNG, atau WEBP."
-        );
-    }
-
-    if (
-        file.size >
-        ADMIN_LIMITS.produkFileMaksimal
-    ) {
-
-        throw new Error(
-            "Foto produk maksimal 10 MB."
-        );
+        preview.classList
+            .add("hidden");
     }
 }
 
@@ -687,977 +774,76 @@ function validateProdukFile(
    PREVIEW KEGIATAN
 ========================================================= */
 
-function previewKegiatan(url) {
+el("kegiatanFoto")
+    ?.addEventListener(
+        "change",
+        event => {
 
-    const wrapper =
-        el("currentKegiatanMedia");
+            const file =
+                event.target
+                    .files?.[0];
 
-    const preview =
-        el("currentKegiatanMediaPreview");
+            kegiatanFileBaru =
+                file || null;
 
-    if (!wrapper || !preview) {
-        return;
-    }
 
-    if (!url) {
+            const preview =
+                el("kegiatanPreview");
 
-        preview.innerHTML = "";
 
-        wrapper.classList.add("hidden");
+            if (
+                !file ||
+                !preview
+            ) {
 
-        return;
-    }
+                preview
+                    ?.classList
+                    .add("hidden");
 
-    if (isVideo(url)) {
-
-        preview.innerHTML = `
-            <video
-                controls
-                preload="metadata"
-            >
-                <source
-                    src="${escapeHTML(url)}"
-                >
-            </video>
-        `;
-
-    } else {
-
-        preview.innerHTML = `
-            <img
-                src="${escapeHTML(url)}"
-                alt="Media kegiatan"
-            >
-        `;
-    }
-
-    wrapper.classList.remove("hidden");
-}
-
-
-/* =========================================================
-   PREVIEW PRODUK
-========================================================= */
-
-function previewProduk(url) {
-
-    const wrapper =
-        el("currentProdukMedia");
-
-    const preview =
-        el("currentProdukMediaPreview");
-
-    if (!wrapper || !preview) {
-        return;
-    }
-
-    if (!url) {
-
-        preview.innerHTML = "";
-
-        wrapper.classList.add("hidden");
-
-        return;
-    }
-
-    preview.innerHTML = `
-        <img
-            src="${escapeHTML(url)}"
-            alt="Foto produk"
-        >
-    `;
-
-    wrapper.classList.remove("hidden");
-}
-
-
-/* =========================================================
-   RESET KEGIATAN
-========================================================= */
-
-function resetKegiatanForm(
-    clearMessage = true
-) {
-
-    const form =
-        el("kegiatanForm");
-
-    if (form) {
-        form.reset();
-    }
-
-    if (el("editKegiatanId")) {
-        el("editKegiatanId").value = "";
-    }
-
-    if (el("editKegiatanMediaLama")) {
-        el("editKegiatanMediaLama").value = "";
-    }
-
-    if (el("editKegiatanNotice")) {
-
-        el("editKegiatanNotice")
-            .classList
-            .add("hidden");
-    }
-
-    if (el("cancelEditKegiatanBottom")) {
-
-        el("cancelEditKegiatanBottom")
-            .classList
-            .add("hidden");
-    }
-
-    if (el("submitKegiatanButton")) {
-
-        el("submitKegiatanButton")
-            .textContent =
-            "Simpan Kegiatan";
-    }
-
-    if (el("kegiatanPageTitle")) {
-
-        el("kegiatanPageTitle")
-            .textContent =
-            "Tambah Kegiatan";
-    }
-
-    previewKegiatan("");
-
-    updateKegiatanCounter();
-
-    if (clearMessage) {
-        setMessage(
-            "kegiatanMessage",
-            ""
-        );
-    }
-}
-
-
-/* =========================================================
-   RESET PRODUK
-========================================================= */
-
-function resetProdukForm(
-    clearMessage = true
-) {
-
-    const form =
-        el("produkForm");
-
-    if (form) {
-        form.reset();
-    }
-
-    if (el("editProdukId")) {
-        el("editProdukId").value = "";
-    }
-
-    if (el("editProdukFotoLama")) {
-        el("editProdukFotoLama").value = "";
-    }
-
-    if (el("stokProduk")) {
-        el("stokProduk").value = "1";
-    }
-
-    if (el("editProdukNotice")) {
-
-        el("editProdukNotice")
-            .classList
-            .add("hidden");
-    }
-
-    if (el("cancelEditProdukBottom")) {
-
-        el("cancelEditProdukBottom")
-            .classList
-            .add("hidden");
-    }
-
-    if (el("submitProdukButton")) {
-
-        el("submitProdukButton")
-            .textContent =
-            "Simpan Produk";
-    }
-
-    if (el("produkPageTitle")) {
-
-        el("produkPageTitle")
-            .textContent =
-            "Tambah Produk";
-    }
-
-    previewProduk("");
-
-    updateProdukCounter();
-
-    if (clearMessage) {
-        setMessage(
-            "produkMessage",
-            ""
-        );
-    }
-}
-
-
-/* =========================================================
-   EDIT KEGIATAN
-========================================================= */
-
-function editKegiatan(id) {
-
-    const item =
-        kegiatanData.find(
-            item =>
-                String(item.id) ===
-                String(id)
-        );
-
-    if (!item) {
-
-        alert(
-            "Kegiatan tidak ditemukan."
-        );
-
-        return;
-    }
-
-    showPage("kegiatan");
-
-    el("editKegiatanId").value =
-        item.id;
-
-    el("editKegiatanMediaLama").value =
-        item.foto_url || "";
-
-    el("judulKegiatan").value =
-        item.judul || "";
-
-    el("tanggalKegiatan").value =
-        item.tanggal || "";
-
-    el("deskripsiKegiatan").value =
-        item.deskripsi || "";
-
-    if (el("mediaKegiatan")) {
-        el("mediaKegiatan").value = "";
-    }
-
-    if (el("editKegiatanNotice")) {
-
-        el("editKegiatanNotice")
-            .classList
-            .remove("hidden");
-    }
-
-    if (el("cancelEditKegiatanBottom")) {
-
-        el("cancelEditKegiatanBottom")
-            .classList
-            .remove("hidden");
-    }
-
-    el("submitKegiatanButton")
-        .textContent =
-        "Simpan Perubahan";
-
-    el("kegiatanPageTitle")
-        .textContent =
-        "Edit Kegiatan";
-
-    previewKegiatan(
-        item.foto_url
-    );
-
-    updateKegiatanCounter();
-
-    setMessage(
-        "kegiatanMessage",
-        "✏️ Mode edit kegiatan.",
-        "loading"
-    );
-
-    el("kegiatanForm")
-        .scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-}
-
-
-/* =========================================================
-   EDIT PRODUK
-========================================================= */
-
-function editProduk(id) {
-
-    const item =
-        produkData.find(
-            item =>
-                String(item.id) ===
-                String(id)
-        );
-
-    if (!item) {
-
-        alert(
-            "Produk tidak ditemukan."
-        );
-
-        return;
-    }
-
-    showPage("produk");
-
-    el("editProdukId").value =
-        item.id;
-
-    el("editProdukFotoLama").value =
-        item.foto_url || "";
-
-    el("namaProduk").value =
-        item.nama || "";
-
-    el("kategoriProduk").value =
-        item.kategori || "lainnya";
-
-    el("hargaProduk").value =
-        Number(item.harga) || 0;
-
-    el("stokProduk").value =
-        Number(item.stok) || 0;
-
-    el("deskripsiProduk").value =
-        item.deskripsi || "";
-
-    if (el("fotoProduk")) {
-        el("fotoProduk").value = "";
-    }
-
-    if (el("editProdukNotice")) {
-
-        el("editProdukNotice")
-            .classList
-            .remove("hidden");
-    }
-
-    if (el("cancelEditProdukBottom")) {
-
-        el("cancelEditProdukBottom")
-            .classList
-            .remove("hidden");
-    }
-
-    el("submitProdukButton")
-        .textContent =
-        "Simpan Perubahan";
-
-    el("produkPageTitle")
-        .textContent =
-        "Edit Produk";
-
-    previewProduk(
-        item.foto_url
-    );
-
-    updateProdukCounter();
-
-    setMessage(
-        "produkMessage",
-        "✏️ Mode edit produk.",
-        "loading"
-    );
-
-    el("produkForm")
-        .scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-}
-
-
-/* =========================================================
-   BATAL EDIT
-========================================================= */
-
-[
-    "cancelEditKegiatan",
-    "cancelEditKegiatanBottom"
-].forEach(id => {
-
-    const button = el(id);
-
-    if (button) {
-
-        button.addEventListener(
-            "click",
-            () => {
-                resetKegiatanForm();
+                return;
             }
-        );
-    }
-});
 
 
-[
-    "cancelEditProduk",
-    "cancelEditProdukBottom"
-].forEach(id => {
-
-    const button = el(id);
-
-    if (button) {
-
-        button.addEventListener(
-            "click",
-            () => {
-                resetProdukForm();
-            }
-        );
-    }
-});
-
-
-/* =========================================================
-   SIMPAN KEGIATAN
-========================================================= */
-
-const kegiatanForm =
-    el("kegiatanForm");
-
-if (kegiatanForm) {
-
-    kegiatanForm.addEventListener(
-        "submit",
-        async event => {
-
-            event.preventDefault();
-
-            const button =
-                el("submitKegiatanButton");
-
-            const editId =
-                el("editKegiatanId")
-                    ?.value || "";
-
-            const editing =
-                Boolean(editId);
-
-            const oldUrl =
-                el("editKegiatanMediaLama")
-                    ?.value || "";
-
-            let uploadBaru = null;
-
-            try {
-
-                button.disabled = true;
-
-                button.textContent =
-                    editing
-                        ? "Menyimpan Perubahan..."
-                        : "Menyimpan...";
-
-                const judul =
-                    el("judulKegiatan")
-                        .value
-                        .trim();
-
-                const tanggal =
-                    el("tanggalKegiatan")
-                        .value || null;
-
-                const deskripsi =
-                    el("deskripsiKegiatan")
-                        .value
-                        .trim();
-
-                const file =
-                    el("mediaKegiatan")
-                        .files[0];
-
-                if (judul.length < 3) {
-
-                    throw new Error(
-                        "Judul minimal 3 karakter."
-                    );
-                }
-
-                if (
-                    judul.length >
-                    ADMIN_LIMITS.kegiatanJudul
-                ) {
-
-                    throw new Error(
-                        "Judul maksimal 80 karakter."
-                    );
-                }
-
-                if (
-                    deskripsi.length >
-                    ADMIN_LIMITS.kegiatanDeskripsi
-                ) {
-
-                    throw new Error(
-                        "Deskripsi maksimal 180 karakter."
-                    );
-                }
-
-                validateKegiatanFile(
-                    file,
-                    !editing && !oldUrl
+            const url =
+                URL.createObjectURL(
+                    file
                 );
 
-                let mediaUrl = oldUrl;
 
-                if (file) {
+            preview.classList
+                .remove("hidden");
 
-                    setMessage(
-                        "kegiatanMessage",
-                        "⏳ Mengupload media...",
-                        "loading"
-                    );
 
-                    uploadBaru =
-                        await uploadFile(
-                            file,
-                            "kegiatan"
-                        );
+            if (
+                file.type
+                    .startsWith(
+                        "video/"
+                    )
+            ) {
 
-                    mediaUrl =
-                        uploadBaru.publicUrl;
-                }
+                preview.innerHTML = `
 
-                if (!mediaUrl) {
+                    <video
+                        src="${url}"
+                        controls
+                    ></video>
 
-                    throw new Error(
-                        "Foto/video kegiatan wajib ada."
-                    );
-                }
+                `;
 
-                const payload = {
-                    judul,
-                    tanggal,
-                    deskripsi,
-                    foto_url: mediaUrl
-                };
+            } else {
 
-                if (editing) {
+                preview.innerHTML = `
 
-                    setMessage(
-                        "kegiatanMessage",
-                        "⏳ Menyimpan perubahan...",
-                        "loading"
-                    );
+                    <img
+                        src="${url}"
+                        alt="Preview kegiatan"
+                    >
 
-                    const {
-                        error
-                    } =
-                        await supabaseClient
-                            .from("kegiatan")
-                            .update(payload)
-                            .eq(
-                                "id",
-                                editId
-                            );
-
-                    if (error) {
-                        throw error;
-                    }
-
-                    if (
-                        uploadBaru &&
-                        oldUrl &&
-                        oldUrl !== mediaUrl
-                    ) {
-
-                        await removeStorageByUrl(
-                            oldUrl
-                        );
-                    }
-
-                    uploadBaru = null;
-
-                    resetKegiatanForm(false);
-
-                    setMessage(
-                        "kegiatanMessage",
-                        "✅ Kegiatan berhasil diperbarui.",
-                        "success"
-                    );
-
-                } else {
-
-                    setMessage(
-                        "kegiatanMessage",
-                        "⏳ Menyimpan kegiatan...",
-                        "loading"
-                    );
-
-                    const {
-                        error
-                    } =
-                        await supabaseClient
-                            .from("kegiatan")
-                            .insert(payload);
-
-                    if (error) {
-                        throw error;
-                    }
-
-                    uploadBaru = null;
-
-                    resetKegiatanForm(false);
-
-                    setMessage(
-                        "kegiatanMessage",
-                        "✅ Kegiatan berhasil ditambahkan.",
-                        "success"
-                    );
-                }
-
-                await loadKegiatan();
-                await updateDashboard();
-
-            } catch (error) {
-
-                console.error(
-                    "Kegiatan error:",
-                    error
-                );
-
-                if (uploadBaru?.filePath) {
-
-                    await removeStoragePath(
-                        uploadBaru.filePath
-                    );
-                }
-
-                setMessage(
-                    "kegiatanMessage",
-                    "❌ " +
-                    (
-                        error.message ||
-                        "Kegiatan gagal disimpan."
-                    ),
-                    "error"
-                );
-
-            } finally {
-
-                button.disabled = false;
-
-                button.textContent =
-                    el("editKegiatanId")
-                        ?.value
-                        ? "Simpan Perubahan"
-                        : "Simpan Kegiatan";
+                `;
             }
+
         }
     );
-}
-
-
-/* =========================================================
-   SIMPAN PRODUK
-========================================================= */
-
-const produkForm =
-    el("produkForm");
-
-if (produkForm) {
-
-    produkForm.addEventListener(
-        "submit",
-        async event => {
-
-            event.preventDefault();
-
-            const button =
-                el("submitProdukButton");
-
-            const editId =
-                el("editProdukId")
-                    ?.value || "";
-
-            const editing =
-                Boolean(editId);
-
-            const oldUrl =
-                el("editProdukFotoLama")
-                    ?.value || "";
-
-            let uploadBaru = null;
-
-            try {
-
-                button.disabled = true;
-
-                button.textContent =
-                    editing
-                        ? "Menyimpan Perubahan..."
-                        : "Menyimpan...";
-
-                const nama =
-                    el("namaProduk")
-                        .value
-                        .trim();
-
-                const kategori =
-                    el("kategoriProduk")
-                        .value;
-
-                const harga =
-                    Number(
-                        el("hargaProduk")
-                            .value
-                    );
-
-                const stok =
-                    Number(
-                        el("stokProduk")
-                            .value
-                    );
-
-                const deskripsi =
-                    el("deskripsiProduk")
-                        .value
-                        .trim();
-
-                const file =
-                    el("fotoProduk")
-                        .files[0];
-
-                if (nama.length < 2) {
-
-                    throw new Error(
-                        "Nama produk minimal 2 karakter."
-                    );
-                }
-
-                if (
-                    nama.length >
-                    ADMIN_LIMITS.produkNama
-                ) {
-
-                    throw new Error(
-                        "Nama produk maksimal 60 karakter."
-                    );
-                }
-
-                if (
-                    !Number.isFinite(harga) ||
-                    harga < 0
-                ) {
-
-                    throw new Error(
-                        "Harga tidak valid."
-                    );
-                }
-
-                if (
-                    harga >
-                    ADMIN_LIMITS.hargaMaksimal
-                ) {
-
-                    throw new Error(
-                        "Harga maksimal " +
-                        formatRupiah(
-                            ADMIN_LIMITS.hargaMaksimal
-                        ) +
-                        "."
-                    );
-                }
-
-                if (
-                    !Number.isInteger(stok) ||
-                    stok < 0
-                ) {
-
-                    throw new Error(
-                        "Stok harus angka bulat minimal 0."
-                    );
-                }
-
-                if (
-                    stok >
-                    ADMIN_LIMITS.stokMaksimal
-                ) {
-
-                    throw new Error(
-                        "Stok maksimal 99.999."
-                    );
-                }
-
-                if (
-                    deskripsi.length >
-                    ADMIN_LIMITS.produkDeskripsi
-                ) {
-
-                    throw new Error(
-                        "Deskripsi maksimal 140 karakter."
-                    );
-                }
-
-                validateProdukFile(
-                    file,
-                    !editing && !oldUrl
-                );
-
-                let fotoUrl = oldUrl;
-
-                if (file) {
-
-                    setMessage(
-                        "produkMessage",
-                        "⏳ Mengupload foto...",
-                        "loading"
-                    );
-
-                    uploadBaru =
-                        await uploadFile(
-                            file,
-                            "produk"
-                        );
-
-                    fotoUrl =
-                        uploadBaru.publicUrl;
-                }
-
-                if (!fotoUrl) {
-
-                    throw new Error(
-                        "Foto produk wajib ada."
-                    );
-                }
-
-                const payload = {
-                    nama,
-                    kategori,
-                    harga,
-                    stok,
-                    deskripsi,
-                    foto_url: fotoUrl,
-                    tersedia: stok > 0
-                };
-
-                if (editing) {
-
-                    setMessage(
-                        "produkMessage",
-                        "⏳ Menyimpan perubahan...",
-                        "loading"
-                    );
-
-                    const {
-                        error
-                    } =
-                        await supabaseClient
-                            .from("produk")
-                            .update(payload)
-                            .eq(
-                                "id",
-                                editId
-                            );
-
-                    if (error) {
-                        throw error;
-                    }
-
-                    if (
-                        uploadBaru &&
-                        oldUrl &&
-                        oldUrl !== fotoUrl
-                    ) {
-
-                        await removeStorageByUrl(
-                            oldUrl
-                        );
-                    }
-
-                    uploadBaru = null;
-
-                    resetProdukForm(false);
-
-                    setMessage(
-                        "produkMessage",
-                        "✅ Produk berhasil diperbarui.",
-                        "success"
-                    );
-
-                } else {
-
-                    setMessage(
-                        "produkMessage",
-                        "⏳ Menyimpan produk...",
-                        "loading"
-                    );
-
-                    const {
-                        error
-                    } =
-                        await supabaseClient
-                            .from("produk")
-                            .insert(payload);
-
-                    if (error) {
-                        throw error;
-                    }
-
-                    uploadBaru = null;
-
-                    resetProdukForm(false);
-
-                    setMessage(
-                        "produkMessage",
-                        "✅ Produk berhasil ditambahkan.",
-                        "success"
-                    );
-                }
-
-                await loadProduk();
-                await updateDashboard();
-
-            } catch (error) {
-
-                console.error(
-                    "Produk error:",
-                    error
-                );
-
-                if (uploadBaru?.filePath) {
-
-                    await removeStoragePath(
-                        uploadBaru.filePath
-                    );
-                }
-
-                setMessage(
-                    "produkMessage",
-                    "❌ " +
-                    (
-                        error.message ||
-                        "Produk gagal disimpan."
-                    ),
-                    "error"
-                );
-
-            } finally {
-
-                button.disabled = false;
-
-                button.textContent =
-                    el("editProdukId")
-                        ?.value
-                        ? "Simpan Perubahan"
-                        : "Simpan Produk";
-            }
-        }
-    );
-}
 
 
 /* =========================================================
@@ -1669,15 +855,20 @@ async function loadKegiatan() {
     const container =
         el("daftarKegiatan");
 
+
     if (!container) {
         return;
     }
 
+
     container.innerHTML = `
+
         <div class="loading-state">
             ⏳ Memuat kegiatan...
         </div>
+
     `;
+
 
     try {
 
@@ -1691,152 +882,238 @@ async function loadKegiatan() {
                 .order(
                     "created_at",
                     {
-                        ascending: false
+                        ascending:
+                            false
                     }
                 );
+
 
         if (error) {
             throw error;
         }
 
+
         kegiatanData =
             data || [];
 
-        if (el("jumlahKegiatan")) {
 
-            el("jumlahKegiatan")
-                .textContent =
-                kegiatanData.length;
-        }
+        renderKegiatan();
 
-        if (!kegiatanData.length) {
 
-            container.innerHTML = `
-                <div class="empty-state">
+    } catch (error) {
 
-                    <span>📷</span>
+        console.error(
+            "Load kegiatan error:",
+            error
+        );
 
-                    <h3>
-                        Belum ada kegiatan
-                    </h3>
 
-                    <p>
-                        Tambahkan dokumentasi
-                        kegiatan menggunakan
-                        form di atas.
-                    </p>
+        container.innerHTML = `
 
-                </div>
-            `;
+            <div class="empty-state">
 
-            return;
-        }
+                <span>
+                    ⚠️
+                </span>
 
-        container.innerHTML =
-            kegiatanData
-                .map(item => {
+                <h3>
+                    Kegiatan gagal dimuat
+                </h3>
 
-                    const url =
-                        item.foto_url || "";
+                <p>
+                    ${escapeHTML(
+                        error.message
+                    )}
+                </p>
 
-                    let media = `
-                        <div class="card-media">
-                            <div
-                                style="
-                                    width:100%;
-                                    height:100%;
-                                    display:flex;
-                                    align-items:center;
-                                    justify-content:center;
-                                    font-size:40px;
-                                "
-                            >
-                                📷
-                            </div>
+            </div>
+
+        `;
+    }
+}
+
+
+/* =========================================================
+   RENDER KEGIATAN
+========================================================= */
+
+function renderKegiatan() {
+
+    const container =
+        el("daftarKegiatan");
+
+
+    if (!container) {
+        return;
+    }
+
+
+    if (
+        !kegiatanData.length
+    ) {
+
+        container.innerHTML = `
+
+            <div class="empty-state">
+
+                <span>
+                    📷
+                </span>
+
+                <h3>
+                    Belum ada kegiatan
+                </h3>
+
+                <p>
+                    Klik Tambah Kegiatan untuk
+                    membuat dokumentasi baru.
+                </p>
+
+            </div>
+
+        `;
+
+        return;
+    }
+
+
+    container.innerHTML =
+        kegiatanData
+            .map(
+                item => {
+
+                    let media =
+                        `
+
+                        <div
+                            class="admin-card-placeholder"
+                        >
+                            📷
                         </div>
-                    `;
+
+                        `;
+
 
                     if (
-                        url &&
-                        isVideo(url)
+                        item.foto_url
                     ) {
 
-                        media = `
-                            <div class="card-media">
+                        if (
+                            isVideoFile(
+                                item.foto_url
+                            )
+                        ) {
+
+                            media = `
 
                                 <video
+                                    src="${item.foto_url}"
                                     controls
                                     preload="metadata"
-                                >
-                                    <source
-                                        src="${escapeHTML(url)}"
-                                    >
-                                </video>
+                                ></video>
 
-                            </div>
-                        `;
+                            `;
 
-                    } else if (url) {
+                        } else {
 
-                        media = `
-                            <div class="card-media">
+                            media = `
 
                                 <img
-                                    src="${escapeHTML(url)}"
-                                    alt="${escapeHTML(item.judul)}"
-                                    loading="lazy"
+                                    src="${item.foto_url}"
+                                    alt="${escapeHTML(
+                                        item.judul
+                                    )}"
                                 >
 
-                            </div>
-                        `;
+                            `;
+                        }
                     }
 
+
                     return `
-                        <article class="card">
 
-                            ${media}
+                        <article
+                            class="admin-card"
+                        >
 
-                            <div class="card-body">
+                            <div
+                                class="admin-card-media"
+                            >
 
-                                <span class="card-date">
-                                    📅
-                                    ${escapeHTML(
-                                        formatTanggal(
-                                            item.tanggal
-                                        )
-                                    )}
+                                ${media}
+
+                            </div>
+
+
+                            <div
+                                class="admin-card-body"
+                            >
+
+                                <span
+                                    class="admin-card-label"
+                                >
+                                    Kegiatan
                                 </span>
 
-                                <h3 class="card-title">
+
+                                <h3>
                                     ${escapeHTML(
                                         item.judul ||
-                                        "Kegiatan"
+                                        "Tanpa Judul"
                                     )}
                                 </h3>
 
-                                <p class="card-description">
+
+                                <p>
                                     ${escapeHTML(
                                         item.deskripsi ||
-                                        "Tidak ada deskripsi."
+                                        "Belum ada deskripsi."
                                     )}
                                 </p>
 
-                                <div class="card-actions">
+
+                                <div
+                                    class="admin-card-meta"
+                                >
+
+                                    <span>
+                                        📅
+                                        ${escapeHTML(
+                                            formatTanggal(
+                                                item.tanggal
+                                            )
+                                        )}
+                                    </span>
+
+                                </div>
+
+
+                                <div
+                                    class="admin-card-actions"
+                                >
 
                                     <button
                                         type="button"
                                         class="edit-button"
-                                        data-action="edit-kegiatan"
-                                        data-id="${escapeHTML(item.id)}"
+                                        onclick="
+                                            editKegiatan(
+                                                '${String(item.id)}'
+                                            )
+                                        "
                                     >
                                         ✏️ Edit
                                     </button>
 
+
                                     <button
                                         type="button"
                                         class="delete-button"
-                                        data-action="delete-kegiatan"
-                                        data-id="${escapeHTML(item.id)}"
+                                        onclick="
+                                            openDeleteModal(
+                                                'kegiatan',
+                                                '${String(item.id)}'
+                                            )
+                                        "
                                     >
                                         🗑️ Hapus
                                     </button>
@@ -1846,39 +1123,453 @@ async function loadKegiatan() {
                             </div>
 
                         </article>
+
                     `;
-                })
-                .join("");
+                }
+            )
+            .join("");
+}
 
-    } catch (error) {
 
-        console.error(
-            "Load kegiatan error:",
-            error
+/* =========================================================
+   EDIT KEGIATAN
+========================================================= */
+
+function editKegiatan(id) {
+
+    const item =
+        kegiatanData.find(
+            data =>
+                String(data.id) ===
+                String(id)
         );
 
-        kegiatanData = [];
 
-        container.innerHTML = `
-            <div class="empty-state">
+    if (!item) {
+        return;
+    }
 
-                <span>⚠️</span>
 
-                <h3>
-                    Kegiatan gagal dimuat
-                </h3>
+    resetKegiatanForm();
 
-                <p>
-                    ${escapeHTML(
+
+    if (
+        el("kegiatanModalTitle")
+    ) {
+
+        el("kegiatanModalTitle")
+            .textContent =
+            "Edit Kegiatan";
+    }
+
+
+    el("kegiatanId").value =
+        item.id ?? "";
+
+
+    el("kegiatanJudul").value =
+        item.judul ?? "";
+
+
+    el("kegiatanTanggal").value =
+        item.tanggal ?? "";
+
+
+    el("kegiatanDeskripsi").value =
+        item.deskripsi ?? "";
+
+
+    currentKegiatanFoto =
+        item.foto_url || "";
+
+
+    const preview =
+        el("kegiatanPreview");
+
+
+    if (
+        preview &&
+        currentKegiatanFoto
+    ) {
+
+        preview.classList
+            .remove("hidden");
+
+
+        if (
+            isVideoFile(
+                currentKegiatanFoto
+            )
+        ) {
+
+            preview.innerHTML = `
+
+                <video
+                    src="${currentKegiatanFoto}"
+                    controls
+                ></video>
+
+            `;
+
+        } else {
+
+            preview.innerHTML = `
+
+                <img
+                    src="${currentKegiatanFoto}"
+                    alt="Foto kegiatan"
+                >
+
+            `;
+        }
+    }
+
+
+    openModal(
+        "kegiatanModal"
+    );
+}
+
+
+/* =========================================================
+   SAVE KEGIATAN
+========================================================= */
+
+el("kegiatanForm")
+    ?.addEventListener(
+        "submit",
+        async event => {
+
+            event.preventDefault();
+
+
+            const form =
+                event.currentTarget;
+
+
+            const id =
+                el("kegiatanId")
+                    ?.value;
+
+
+            const judul =
+                el("kegiatanJudul")
+                    ?.value
+                    .trim();
+
+
+            const tanggal =
+                el("kegiatanTanggal")
+                    ?.value;
+
+
+            const deskripsi =
+                el("kegiatanDeskripsi")
+                    ?.value
+                    .trim();
+
+
+            if (!judul) {
+
+                alert(
+                    "Judul kegiatan wajib diisi."
+                );
+
+                return;
+            }
+
+
+            const button =
+                el("saveKegiatanButton");
+
+
+            setButtonLoading(
+                button,
+                true,
+                "Simpan Kegiatan",
+                "⏳ Menyimpan..."
+            );
+
+
+            try {
+
+                let fotoURL =
+                    currentKegiatanFoto;
+
+
+                if (
+                    kegiatanFileBaru
+                ) {
+
+                    fotoURL =
+                        await uploadFile(
+                            "kegiatan",
+                            "uploads",
+                            kegiatanFileBaru
+                        );
+                }
+
+
+                const payload = {
+
+                    judul,
+                    tanggal:
+                        tanggal || null,
+
+                    deskripsi:
+                        deskripsi || "",
+
+                    foto_url:
+                        fotoURL || ""
+                };
+
+
+                if (id) {
+
+                    const {
+                        error
+                    } =
+                        await supabaseClient
+                            .from("kegiatan")
+                            .update(
+                                payload
+                            )
+                            .eq(
+                                "id",
+                                id
+                            );
+
+
+                    if (error) {
+                        throw error;
+                    }
+
+
+                    if (
+                        kegiatanFileBaru &&
+                        currentKegiatanFoto &&
+                        currentKegiatanFoto !==
+                        fotoURL
+                    ) {
+
+                        await deleteStorageFileFromURL(
+                            "kegiatan",
+                            currentKegiatanFoto
+                        );
+                    }
+
+                } else {
+
+                    const {
+                        error
+                    } =
+                        await supabaseClient
+                            .from("kegiatan")
+                            .insert([
+                                payload
+                            ]);
+
+
+                    if (error) {
+                        throw error;
+                    }
+                }
+
+
+                form.reset();
+
+                closeModal(
+                    "kegiatanModal"
+                );
+
+                resetKegiatanForm();
+
+                await loadKegiatan();
+
+                await updateDashboard();
+
+
+                alert(
+                    id
+                        ? "✅ Kegiatan berhasil diperbarui."
+                        : "✅ Kegiatan berhasil ditambahkan."
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    "Save kegiatan error:",
+                    error
+                );
+
+
+                alert(
+                    "❌ Kegiatan gagal disimpan.\n\n" +
+                    (
                         error.message ||
                         "Terjadi kesalahan."
-                    )}
-                </p>
+                    )
+                );
 
-            </div>
-        `;
+            } finally {
+
+                setButtonLoading(
+                    button,
+                    false,
+                    "Simpan Kegiatan",
+                    "⏳ Menyimpan..."
+                );
+            }
+
+        }
+    );
+
+
+/* =========================================================
+   PRODUK - OPEN MODAL
+========================================================= */
+
+el("openProdukModal")
+    ?.addEventListener(
+        "click",
+        () => {
+
+            resetProdukForm();
+
+
+            if (
+                el("produkModalTitle")
+            ) {
+
+                el("produkModalTitle")
+                    .textContent =
+                    "Tambah Produk";
+            }
+
+
+            openModal(
+                "produkModal"
+            );
+        }
+    );
+
+
+el("closeProdukModal")
+    ?.addEventListener(
+        "click",
+        () => {
+
+            closeModal(
+                "produkModal"
+            );
+        }
+    );
+
+
+/* =========================================================
+   RESET PRODUK
+========================================================= */
+
+function resetProdukForm() {
+
+    el("produkForm")
+        ?.reset();
+
+
+    if (el("produkId")) {
+
+        el("produkId")
+            .value = "";
+    }
+
+
+    if (
+        el("produkTersedia")
+    ) {
+
+        el("produkTersedia")
+            .checked = true;
+    }
+
+
+    currentProdukFoto =
+        "";
+
+    produkFileBaru =
+        null;
+
+
+    const preview =
+        el("produkPreview");
+
+
+    if (preview) {
+
+        preview.innerHTML =
+            "";
+
+        preview.classList
+            .add("hidden");
     }
 }
+
+
+/* =========================================================
+   PREVIEW PRODUK
+========================================================= */
+
+el("produkFoto")
+    ?.addEventListener(
+        "change",
+        event => {
+
+            const file =
+                event.target
+                    .files?.[0];
+
+
+            produkFileBaru =
+                file || null;
+
+
+            const preview =
+                el("produkPreview");
+
+
+            if (
+                !file ||
+                !preview
+            ) {
+
+                preview
+                    ?.classList
+                    .add("hidden");
+
+                return;
+            }
+
+
+            const url =
+                URL.createObjectURL(
+                    file
+                );
+
+
+            preview.classList
+                .remove("hidden");
+
+
+            preview.innerHTML = `
+
+                <img
+                    src="${url}"
+                    alt="Preview produk"
+                >
+
+            `;
+        }
+    );
 
 
 /* =========================================================
@@ -1890,15 +1581,20 @@ async function loadProduk() {
     const container =
         el("daftarProduk");
 
+
     if (!container) {
         return;
     }
 
+
     container.innerHTML = `
+
         <div class="loading-state">
             ⏳ Memuat produk...
         </div>
+
     `;
+
 
     try {
 
@@ -1912,152 +1608,234 @@ async function loadProduk() {
                 .order(
                     "created_at",
                     {
-                        ascending: false
+                        ascending:
+                            false
                     }
                 );
+
 
         if (error) {
             throw error;
         }
 
+
         produkData =
             data || [];
 
-        if (el("jumlahProduk")) {
 
-            el("jumlahProduk")
-                .textContent =
-                produkData.length;
-        }
+        renderProduk();
 
-        if (!produkData.length) {
 
-            container.innerHTML = `
-                <div class="empty-state">
+    } catch (error) {
 
-                    <span>🛍️</span>
+        console.error(
+            "Load produk error:",
+            error
+        );
 
-                    <h3>
-                        Belum ada produk
-                    </h3>
 
-                    <p>
-                        Tambahkan produk karya
-                        santri menggunakan
-                        form di atas.
-                    </p>
+        container.innerHTML = `
 
-                </div>
-            `;
+            <div class="empty-state">
 
-            return;
-        }
+                <span>
+                    ⚠️
+                </span>
 
-        container.innerHTML =
-            produkData
-                .map(item => {
+                <h3>
+                    Produk gagal dimuat
+                </h3>
 
-                    const foto =
-                        item.foto_url || "";
+                <p>
+                    ${escapeHTML(
+                        error.message
+                    )}
+                </p>
 
-                    let media = `
-                        <div class="card-media">
+            </div>
 
-                            <div
-                                style="
-                                    width:100%;
-                                    height:100%;
-                                    display:flex;
-                                    align-items:center;
-                                    justify-content:center;
-                                    font-size:40px;
-                                "
-                            >
-                                🛍️
-                            </div>
+        `;
+    }
+}
 
-                        </div>
-                    `;
 
-                    if (foto) {
+/* =========================================================
+   RENDER PRODUK
+========================================================= */
 
-                        media = `
-                            <div class="card-media">
+function renderProduk() {
+
+    const container =
+        el("daftarProduk");
+
+
+    if (!container) {
+        return;
+    }
+
+
+    if (
+        !produkData.length
+    ) {
+
+        container.innerHTML = `
+
+            <div class="empty-state">
+
+                <span>
+                    🛍️
+                </span>
+
+                <h3>
+                    Belum ada produk
+                </h3>
+
+                <p>
+                    Klik Tambah Produk untuk
+                    membuat produk baru.
+                </p>
+
+            </div>
+
+        `;
+
+        return;
+    }
+
+
+    container.innerHTML =
+        produkData
+            .map(
+                item => {
+
+                    const tersedia =
+                        item.tersedia !==
+                        false &&
+                        Number(
+                            item.stok
+                        ) > 0;
+
+
+                    const media =
+                        item.foto_url
+                            ? `
 
                                 <img
-                                    src="${escapeHTML(foto)}"
-                                    alt="${escapeHTML(item.nama)}"
-                                    loading="lazy"
+                                    src="${item.foto_url}"
+                                    alt="${escapeHTML(
+                                        item.nama
+                                    )}"
                                 >
 
-                            </div>
-                        `;
-                    }
+                            `
+                            : `
 
-                    const stok =
-                        Number(item.stok) || 0;
+                                <div
+                                    class="admin-card-placeholder"
+                                >
+                                    🛍️
+                                </div>
+
+                            `;
+
 
                     return `
-                        <article class="card">
 
-                            ${media}
+                        <article
+                            class="admin-card"
+                        >
 
-                            <div class="card-body">
+                            <div
+                                class="admin-card-media"
+                            >
 
-                                <span class="card-category">
+                                ${media}
+
+                            </div>
+
+
+                            <div
+                                class="admin-card-body"
+                            >
+
+                                <span
+                                    class="admin-card-label"
+                                >
                                     ${escapeHTML(
                                         item.kategori ||
-                                        "lainnya"
+                                        "Produk"
                                     )}
                                 </span>
 
-                                <h3 class="card-title">
+
+                                <h3>
                                     ${escapeHTML(
                                         item.nama ||
-                                        "Produk"
+                                        "Tanpa Nama"
                                     )}
                                 </h3>
 
-                                <p class="card-description">
+
+                                <p>
                                     ${escapeHTML(
                                         item.deskripsi ||
-                                        "Tidak ada deskripsi."
+                                        "Belum ada deskripsi."
                                     )}
                                 </p>
 
-                                <div class="card-price">
-                                    ${formatRupiah(
-                                        item.harga
-                                    )}
+
+                                <div
+                                    class="admin-card-meta"
+                                >
+
+                                    <strong>
+                                        ${formatRupiah(
+                                            item.harga
+                                        )}
+                                    </strong>
+
+
+                                    <span>
+
+                                        ${
+                                            tersedia
+                                                ? `Stok ${Number(
+                                                    item.stok
+                                                )}`
+                                                : "Habis"
+                                        }
+
+                                    </span>
+
                                 </div>
 
-                                <div class="card-stock">
-                                    Stok:
-                                    ${stok}
 
-                                    ${
-                                        stok > 0
-                                            ? " • Tersedia"
-                                            : " • Habis"
-                                    }
-                                </div>
-
-                                <div class="card-actions">
+                                <div
+                                    class="admin-card-actions"
+                                >
 
                                     <button
                                         type="button"
                                         class="edit-button"
-                                        data-action="edit-produk"
-                                        data-id="${escapeHTML(item.id)}"
+                                        onclick="
+                                            editProduk(
+                                                '${String(item.id)}'
+                                            )
+                                        "
                                     >
                                         ✏️ Edit
                                     </button>
 
+
                                     <button
                                         type="button"
                                         class="delete-button"
-                                        data-action="delete-produk"
-                                        data-id="${escapeHTML(item.id)}"
+                                        onclick="
+                                            openDeleteModal(
+                                                'produk',
+                                                '${String(item.id)}'
+                                            )
+                                        "
                                     >
                                         🗑️ Hapus
                                     </button>
@@ -2067,26 +1845,523 @@ async function loadProduk() {
                             </div>
 
                         </article>
+
                     `;
-                })
-                .join("");
+                }
+            )
+            .join("");
+}
+
+
+/* =========================================================
+   EDIT PRODUK
+========================================================= */
+
+function editProduk(id) {
+
+    const item =
+        produkData.find(
+            data =>
+                String(data.id) ===
+                String(id)
+        );
+
+
+    if (!item) {
+        return;
+    }
+
+
+    resetProdukForm();
+
+
+    if (
+        el("produkModalTitle")
+    ) {
+
+        el("produkModalTitle")
+            .textContent =
+            "Edit Produk";
+    }
+
+
+    el("produkId").value =
+        item.id ?? "";
+
+
+    el("produkNama").value =
+        item.nama ?? "";
+
+
+    el("produkHarga").value =
+        Number(
+            item.harga
+        ) || 0;
+
+
+    el("produkStok").value =
+        Number(
+            item.stok
+        ) || 0;
+
+
+    el("produkKategori").value =
+        item.kategori ?? "";
+
+
+    el("produkDeskripsi").value =
+        item.deskripsi ?? "";
+
+
+    el("produkTersedia").checked =
+        item.tersedia !== false;
+
+
+    currentProdukFoto =
+        item.foto_url || "";
+
+
+    const preview =
+        el("produkPreview");
+
+
+    if (
+        preview &&
+        currentProdukFoto
+    ) {
+
+        preview.classList
+            .remove("hidden");
+
+
+        preview.innerHTML = `
+
+            <img
+                src="${currentProdukFoto}"
+                alt="Foto produk"
+            >
+
+        `;
+    }
+
+
+    openModal(
+        "produkModal"
+    );
+}
+
+
+/* =========================================================
+   SAVE PRODUK
+========================================================= */
+
+el("produkForm")
+    ?.addEventListener(
+        "submit",
+        async event => {
+
+            event.preventDefault();
+
+
+            const form =
+                event.currentTarget;
+
+
+            const id =
+                el("produkId")
+                    ?.value;
+
+
+            const nama =
+                el("produkNama")
+                    ?.value
+                    .trim();
+
+
+            const harga =
+                Number(
+                    el("produkHarga")
+                        ?.value
+                );
+
+
+            const stok =
+                Number(
+                    el("produkStok")
+                        ?.value
+                );
+
+
+            const kategori =
+                el("produkKategori")
+                    ?.value
+                    .trim();
+
+
+            const deskripsi =
+                el("produkDeskripsi")
+                    ?.value
+                    .trim();
+
+
+            const tersedia =
+                Boolean(
+                    el("produkTersedia")
+                        ?.checked
+                );
+
+
+            if (!nama) {
+
+                alert(
+                    "Nama produk wajib diisi."
+                );
+
+                return;
+            }
+
+
+            if (
+                !Number.isFinite(
+                    harga
+                ) ||
+                harga < 0
+            ) {
+
+                alert(
+                    "Harga produk tidak valid."
+                );
+
+                return;
+            }
+
+
+            if (
+                !Number.isFinite(
+                    stok
+                ) ||
+                stok < 0
+            ) {
+
+                alert(
+                    "Stok produk tidak valid."
+                );
+
+                return;
+            }
+
+
+            const button =
+                el("saveProdukButton");
+
+
+            setButtonLoading(
+                button,
+                true,
+                "Simpan Produk",
+                "⏳ Menyimpan..."
+            );
+
+
+            try {
+
+                let fotoURL =
+                    currentProdukFoto;
+
+
+                if (
+                    produkFileBaru
+                ) {
+
+                    fotoURL =
+                        await uploadFile(
+                            "produk",
+                            "uploads",
+                            produkFileBaru
+                        );
+                }
+
+
+                const payload = {
+
+                    nama,
+
+                    harga,
+
+                    stok,
+
+                    kategori:
+                        kategori || "",
+
+                    deskripsi:
+                        deskripsi || "",
+
+                    tersedia,
+
+                    foto_url:
+                        fotoURL || ""
+                };
+
+
+                if (id) {
+
+                    const {
+                        error
+                    } =
+                        await supabaseClient
+                            .from("produk")
+                            .update(
+                                payload
+                            )
+                            .eq(
+                                "id",
+                                id
+                            );
+
+
+                    if (error) {
+                        throw error;
+                    }
+
+
+                    if (
+                        produkFileBaru &&
+                        currentProdukFoto &&
+                        currentProdukFoto !==
+                        fotoURL
+                    ) {
+
+                        await deleteStorageFileFromURL(
+                            "produk",
+                            currentProdukFoto
+                        );
+                    }
+
+                } else {
+
+                    const {
+                        error
+                    } =
+                        await supabaseClient
+                            .from("produk")
+                            .insert([
+                                payload
+                            ]);
+
+
+                    if (error) {
+                        throw error;
+                    }
+                }
+
+
+                form.reset();
+
+                closeModal(
+                    "produkModal"
+                );
+
+                resetProdukForm();
+
+                await loadProduk();
+
+                await updateDashboard();
+
+
+                alert(
+                    id
+                        ? "✅ Produk berhasil diperbarui."
+                        : "✅ Produk berhasil ditambahkan."
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    "Save produk error:",
+                    error
+                );
+
+
+                alert(
+                    "❌ Produk gagal disimpan.\n\n" +
+                    (
+                        error.message ||
+                        "Terjadi kesalahan."
+                    )
+                );
+
+            } finally {
+
+                setButtonLoading(
+                    button,
+                    false,
+                    "Simpan Produk",
+                    "⏳ Menyimpan..."
+                );
+            }
+
+        }
+    );
+
+
+/* =========================================================
+   PESANAN
+========================================================= */
+
+function getPesananItems(
+    item
+) {
+
+    if (
+        Array.isArray(
+            item?.items
+        )
+    ) {
+
+        return item.items;
+    }
+
+
+    if (
+        typeof item?.items ===
+        "string"
+    ) {
+
+        try {
+
+            const parsed =
+                JSON.parse(
+                    item.items
+                );
+
+
+            return Array.isArray(
+                parsed
+            )
+                ? parsed
+                : [];
+
+        } catch {
+
+            return [];
+        }
+    }
+
+
+    return [];
+}
+
+
+/* =========================================================
+   JUMLAH BARANG PESANAN
+========================================================= */
+
+function getJumlahBarang(
+    item
+) {
+
+    return getPesananItems(
+        item
+    ).reduce(
+        (
+            total,
+            product
+        ) => {
+
+            return (
+                total +
+                Number(
+                    product.jumlah ??
+                    product.quantity ??
+                    1
+                )
+            );
+
+        },
+        0
+    );
+}
+
+
+/* =========================================================
+   LOAD PESANAN
+========================================================= */
+
+async function loadPesanan() {
+
+    const container =
+        el("daftarPesanan");
+
+
+    if (!container) {
+        return;
+    }
+
+
+    container.innerHTML = `
+
+        <div class="loading-state">
+            ⏳ Memuat pesanan...
+        </div>
+
+    `;
+
+
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .from("pesanan")
+                .select("*")
+                .order(
+                    "created_at",
+                    {
+                        ascending:
+                            false
+                    }
+                );
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        pesananData =
+            data || [];
+
+
+        renderPesanan();
+
+        updatePesananCounter();
+
 
     } catch (error) {
 
         console.error(
-            "Load produk error:",
+            "Load pesanan error:",
             error
         );
 
-        produkData = [];
+
+        pesananData =
+            [];
+
 
         container.innerHTML = `
+
             <div class="empty-state">
 
-                <span>⚠️</span>
+                <span>
+                    ⚠️
+                </span>
 
                 <h3>
-                    Produk gagal dimuat
+                    Pesanan gagal dimuat
                 </h3>
 
                 <p>
@@ -2097,105 +2372,1121 @@ async function loadProduk() {
                 </p>
 
             </div>
+
         `;
     }
 }
 
 
 /* =========================================================
-   TOMBOL EDIT/HAPUS KEGIATAN
+   PESANAN COUNTER
 ========================================================= */
 
-if (el("daftarKegiatan")) {
+function updatePesananCounter() {
 
-    el("daftarKegiatan")
-        .addEventListener(
-            "click",
-            event => {
+    const total =
+        pesananData.length;
 
-                const button =
-                    event.target.closest(
-                        "button[data-action]"
-                    );
 
-                if (!button) {
-                    return;
-                }
+    const baru =
+        pesananData.filter(
+            item =>
+                String(
+                    item.status ||
+                    "baru"
+                )
+                    .toLowerCase() ===
+                "baru"
+        ).length;
 
-                const id =
-                    button.dataset.id;
 
-                if (
-                    button.dataset.action ===
-                    "edit-kegiatan"
-                ) {
+    if (
+        el("jumlahPesanan")
+    ) {
 
-                    editKegiatan(id);
-                }
+        el("jumlahPesanan")
+            .textContent =
+            total;
+    }
 
-                if (
-                    button.dataset.action ===
-                    "delete-kegiatan"
-                ) {
 
-                    openDeleteModal(
-                        "kegiatan",
-                        id
-                    );
-                }
-            }
+    if (
+        el("jumlahPesananBaru")
+    ) {
+
+        el("jumlahPesananBaru")
+            .textContent =
+            baru;
+    }
+
+
+    const badge =
+        el(
+            "sidebarPesananBaru"
         );
+
+
+    if (badge) {
+
+        badge.textContent =
+            baru;
+
+
+        badge.classList.toggle(
+            "hidden",
+            baru <= 0
+        );
+    }
 }
 
 
 /* =========================================================
-   TOMBOL EDIT/HAPUS PRODUK
+   RENDER PESANAN
 ========================================================= */
 
-if (el("daftarProduk")) {
+function renderPesanan() {
 
-    el("daftarProduk")
-        .addEventListener(
-            "click",
-            event => {
+    const container =
+        el("daftarPesanan");
 
-                const button =
-                    event.target.closest(
-                        "button[data-action]"
-                    );
 
-                if (!button) {
-                    return;
+    if (!container) {
+        return;
+    }
+
+
+    const filter =
+        el(
+            "filterStatusPesanan"
+        )?.value ||
+        "semua";
+
+
+    const filtered =
+        filter === "semua"
+            ? [...pesananData]
+            : pesananData.filter(
+                item =>
+                    String(
+                        item.status ||
+                        "baru"
+                    )
+                        .toLowerCase() ===
+                    filter
+            );
+
+
+    if (
+        el("pesananSummaryText")
+    ) {
+
+        el(
+            "pesananSummaryText"
+        ).textContent =
+            `${filtered.length} pesanan ditampilkan • ${pesananData.length} total`;
+    }
+
+
+    if (
+        !filtered.length
+    ) {
+
+        container.innerHTML = `
+
+            <div class="empty-state">
+
+                <span>
+                    📦
+                </span>
+
+                <h3>
+                    Belum ada pesanan
+                </h3>
+
+                <p>
+
+                    ${
+                        filter ===
+                        "semua"
+
+                            ? "Pesanan dari website akan muncul di sini."
+
+                            : "Tidak ada pesanan dengan status ini."
+                    }
+
+                </p>
+
+            </div>
+
+        `;
+
+        return;
+    }
+
+
+    container.innerHTML =
+        filtered
+            .map(
+                item => {
+
+                    const items =
+                        getPesananItems(
+                            item
+                        );
+
+
+                    const status =
+                        String(
+                            item.status ||
+                            "baru"
+                        ).toLowerCase();
+
+
+                    const itemHTML =
+                        items.length
+
+                            ? items
+                                .map(
+                                    product => {
+
+                                        const jumlah =
+                                            Number(
+                                                product.jumlah ??
+                                                product.quantity ??
+                                                1
+                                            );
+
+
+                                        const harga =
+                                            Number(
+                                                product.harga ??
+                                                0
+                                            );
+
+
+                                        const subtotal =
+                                            Number(
+                                                product.subtotal ??
+                                                harga *
+                                                jumlah
+                                            );
+
+
+                                        return `
+
+                                            <div
+                                                class="order-item"
+                                            >
+
+                                                <div>
+
+                                                    <div
+                                                        class="order-item-name"
+                                                    >
+
+                                                        ${escapeHTML(
+                                                            product.nama ||
+                                                            product.name ||
+                                                            "Produk"
+                                                        )}
+
+                                                    </div>
+
+
+                                                    <div
+                                                        class="order-item-meta"
+                                                    >
+
+                                                        ${jumlah}
+
+                                                        ×
+
+                                                        ${formatRupiah(
+                                                            harga
+                                                        )}
+
+                                                    </div>
+
+                                                </div>
+
+
+                                                <div
+                                                    class="order-item-price"
+                                                >
+
+                                                    ${formatRupiah(
+                                                        subtotal
+                                                    )}
+
+                                                </div>
+
+                                            </div>
+
+                                        `;
+                                    }
+                                )
+                                .join("")
+
+                            : `
+
+                                <div
+                                    class="order-item"
+                                >
+
+                                    <div
+                                        class="order-item-name"
+                                    >
+                                        Data barang tidak tersedia.
+                                    </div>
+
+                                </div>
+
+                            `;
+
+
+                    return `
+
+                        <article
+                            class="order-card"
+                            data-order-id="${escapeHTML(
+                                item.id
+                            )}"
+                        >
+
+
+                            <div
+                                class="order-head"
+                            >
+
+
+                                <div>
+
+                                    <h2
+                                        class="order-number"
+                                    >
+                                        Pesanan #${escapeHTML(
+                                            item.id
+                                        )}
+                                    </h2>
+
+
+                                    <div
+                                        class="order-date"
+                                    >
+
+                                        ${escapeHTML(
+                                            formatTanggalWaktu(
+                                                item.created_at
+                                            )
+                                        )}
+
+                                        •
+
+                                        ${getJumlahBarang(
+                                            item
+                                        )}
+
+                                        barang
+
+                                    </div>
+
+                                </div>
+
+
+                                <span
+                                    class="order-status ${escapeHTML(
+                                        status
+                                    )}"
+                                >
+
+                                    ${escapeHTML(
+                                        status
+                                    )}
+
+                                </span>
+
+
+                            </div>
+
+
+                            <div
+                                class="order-body"
+                            >
+
+
+                                <div>
+
+
+                                    <div
+                                        class="order-section-title"
+                                    >
+                                        Data Pemesan
+                                    </div>
+
+
+                                    <div
+                                        class="order-customer"
+                                    >
+
+
+                                        <div
+                                            class="order-info-row"
+                                        >
+
+                                            <span>
+                                                Nama
+                                            </span>
+
+                                            <strong>
+
+                                                ${escapeHTML(
+                                                    item.nama_pembeli ||
+                                                    "-"
+                                                )}
+
+                                            </strong>
+
+                                        </div>
+
+
+                                        <div
+                                            class="order-info-row"
+                                        >
+
+                                            <span>
+                                                WhatsApp
+                                            </span>
+
+                                            <strong>
+
+                                                ${escapeHTML(
+                                                    item.nomor_whatsapp ||
+                                                    "-"
+                                                )}
+
+                                            </strong>
+
+                                        </div>
+
+
+                                        <div
+                                            class="order-info-row"
+                                        >
+
+                                            <span>
+                                                Alamat
+                                            </span>
+
+                                            <div>
+
+                                                ${escapeHTML(
+                                                    item.alamat ||
+                                                    "-"
+                                                )}
+
+                                            </div>
+
+                                        </div>
+
+
+                                    </div>
+
+
+                                </div>
+
+
+                                <div>
+
+
+                                    <div
+                                        class="order-section-title"
+                                    >
+                                        Barang Pesanan
+                                    </div>
+
+
+                                    <div
+                                        class="order-items"
+                                    >
+
+                                        ${itemHTML}
+
+                                    </div>
+
+
+                                    <div
+                                        class="order-total"
+                                    >
+
+                                        <span>
+                                            Total Pesanan
+                                        </span>
+
+                                        <strong>
+
+                                            ${formatRupiah(
+                                                item.total
+                                            )}
+
+                                        </strong>
+
+                                    </div>
+
+
+                                </div>
+
+
+                            </div>
+
+
+                            <div
+                                class="order-actions"
+                            >
+
+
+                                <select
+
+                                    class="order-status-select"
+
+                                    data-action="status-pesanan"
+
+                                    data-id="${escapeHTML(
+                                        item.id
+                                    )}"
+
+                                >
+
+                                    <option
+                                        value="baru"
+
+                                        ${
+                                            status ===
+                                            "baru"
+                                                ? "selected"
+                                                : ""
+                                        }
+                                    >
+                                        Baru
+                                    </option>
+
+
+                                    <option
+                                        value="diproses"
+
+                                        ${
+                                            status ===
+                                            "diproses"
+                                                ? "selected"
+                                                : ""
+                                        }
+                                    >
+                                        Diproses
+                                    </option>
+
+
+                                    <option
+                                        value="dikirim"
+
+                                        ${
+                                            status ===
+                                            "dikirim"
+                                                ? "selected"
+                                                : ""
+                                        }
+                                    >
+                                        Dikirim
+                                    </option>
+
+
+                                    <option
+                                        value="selesai"
+
+                                        ${
+                                            status ===
+                                            "selesai"
+                                                ? "selected"
+                                                : ""
+                                        }
+                                    >
+                                        Selesai
+                                    </option>
+
+
+                                    <option
+                                        value="dibatalkan"
+
+                                        ${
+                                            status ===
+                                            "dibatalkan"
+                                                ? "selected"
+                                                : ""
+                                        }
+                                    >
+                                        Dibatalkan
+                                    </option>
+
+
+                                </select>
+
+                                <button
+    type="button"
+    class="order-payment-proof"
+    data-action="lihat-bukti-pembayaran"
+    data-id="${escapeHTML(
+        item.id
+    )}"
+    ${!item.bukti_pembayaran ? "disabled" : ""}
+>
+    👁 Lihat Bukti
+</button>
+
+${
+    item.bukti_pembayaran &&
+    item.status_pembayaran !== "dibayar"
+        ? `
+            <button
+                type="button"
+                class="order-payment-approve"
+                data-action="terima-pembayaran"
+                data-id="${escapeHTML(item.id)}"
+            >
+                ✅ Terima
+            </button>
+
+            <button
+                type="button"
+                class="order-payment-reject"
+                data-action="tolak-pembayaran"
+                data-id="${escapeHTML(item.id)}"
+            >
+                ❌ Tolak
+            </button>
+        `
+        : ""
+}
+
+                                <button
+
+                                    type="button"
+
+                                    class="order-whatsapp"
+
+                                    data-action="whatsapp-pesanan"
+
+                                    data-id="${escapeHTML(
+                                        item.id
+                                    )}"
+
+                                >
+                                    💬 WhatsApp
+                                </button>
+
+
+                                <button
+
+                                    type="button"
+
+                                    class="order-delete"
+
+                                    data-action="delete-pesanan"
+
+                                    data-id="${escapeHTML(
+                                        item.id
+                                    )}"
+
+                                >
+                                    🗑️ Hapus
+                                </button>
+
+
+                            </div>
+
+
+                        </article>
+
+                    `;
                 }
-
-                const id =
-                    button.dataset.id;
-
-                if (
-                    button.dataset.action ===
-                    "edit-produk"
-                ) {
-
-                    editProduk(id);
-                }
-
-                if (
-                    button.dataset.action ===
-                    "delete-produk"
-                ) {
-
-                    openDeleteModal(
-                        "produk",
-                        id
-                    );
-                }
-            }
-        );
+            )
+            .join("");
 }
 
 
 /* =========================================================
-   MODAL HAPUS
+   FILTER PESANAN
+========================================================= */
+
+el("filterStatusPesanan")
+    ?.addEventListener(
+        "change",
+        () => {
+
+            renderPesanan();
+        }
+    );
+
+
+/* =========================================================
+   UPDATE STATUS PESANAN
+   + STOK OTOMATIS
+========================================================= */
+
+async function updateStatusPesanan(
+    id,
+    status,
+    selectElement
+) {
+
+    const allowed = [
+        "baru",
+        "diproses",
+        "dikirim",
+        "selesai",
+        "dibatalkan"
+    ];
+
+
+    /* =====================================================
+       VALIDASI STATUS
+    ===================================================== */
+
+    if (
+        !allowed.includes(
+            status
+        )
+    ) {
+
+        alert(
+            "Status pesanan tidak valid."
+        );
+
+        return;
+    }
+
+
+    /* =====================================================
+       SIMPAN STATUS LAMA
+       Untuk mengembalikan dropdown jika terjadi error.
+    ===================================================== */
+
+    const currentItem =
+        pesananData.find(
+            item =>
+                String(item.id) ===
+                String(id)
+        );
+
+    const oldStatus =
+        currentItem?.status ||
+        "baru";
+
+
+    /* =====================================================
+       DISABLE DROPDOWN SAAT PROSES
+    ===================================================== */
+
+    if (
+        selectElement
+    ) {
+
+        selectElement.disabled =
+            true;
+    }
+
+
+    try {
+
+        /* =================================================
+           PANGGIL FUNCTION SUPABASE
+
+           Function ini yang menangani:
+           - perubahan status
+           - pengembalian stok jika dibatalkan
+           - pengurangan stok jika pesanan diaktifkan lagi
+        ================================================= */
+
+        const {
+            error
+        } =
+            await supabaseClient
+                .rpc(
+                    "ubah_status_pesanan",
+                    {
+                        p_pesanan_id:
+                            Number(id),
+
+                        p_status_baru:
+                            status
+                    }
+                );
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        /* =================================================
+           UPDATE DATA LOKAL
+        ================================================= */
+
+        if (
+            currentItem
+        ) {
+
+            currentItem.status =
+                status;
+        }
+
+
+        /* =================================================
+           REFRESH PESANAN DARI DATABASE
+
+           Supaya data admin benar-benar sinkron
+           dengan Supabase.
+        ================================================= */
+
+        await loadPesanan();
+
+
+        /* =================================================
+           UPDATE DASHBOARD
+        ================================================= */
+
+        await updateDashboard();
+
+
+        console.log(
+            `✅ Status pesanan #${id}: ${oldStatus} → ${status}`
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Update status pesanan error:",
+            error
+        );
+
+
+        /* =================================================
+           KEMBALIKAN DROPDOWN KE STATUS LAMA
+        ================================================= */
+
+        if (
+            selectElement &&
+            document.body.contains(
+                selectElement
+            )
+        ) {
+
+            selectElement.value =
+                oldStatus;
+        }
+
+
+        alert(
+            "❌ Status pesanan gagal diubah.\n\n" +
+            (
+                error.message ||
+                "Terjadi kesalahan."
+            )
+        );
+
+
+        /* =================================================
+           REFRESH DATA
+        ================================================= */
+
+        await loadPesanan();
+
+
+    } finally {
+
+        if (
+            selectElement &&
+            document.body.contains(
+                selectElement
+            )
+        ) {
+
+            selectElement.disabled =
+                false;
+        }
+    }
+}
+
+/* =========================================================
+   LIHAT BUKTI PEMBAYARAN
+========================================================= */
+
+async function lihatBuktiPembayaran(id) {
+
+    const item =
+        pesananData.find(
+            data =>
+                String(data.id) ===
+                String(id)
+        );
+
+    if (!item) {
+        alert("Pesanan tidak ditemukan.");
+        return;
+    }
+
+    if (!item.bukti_pembayaran) {
+        alert("Pembeli belum mengirim bukti pembayaran.");
+        return;
+    }
+
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .storage
+                .from("bukti-pembayaran")
+                .createSignedUrl(
+                    item.bukti_pembayaran,
+                    60 * 10
+                );
+
+        if (error) {
+            throw error;
+        }
+
+        if (!data?.signedUrl) {
+            throw new Error(
+                "URL bukti pembayaran tidak berhasil dibuat."
+            );
+        }
+
+        window.open(
+            data.signedUrl,
+            "_blank"
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Lihat bukti pembayaran error:",
+            error
+        );
+
+        alert(
+            "❌ Bukti pembayaran gagal dibuka.\n\n" +
+            (
+                error.message ||
+                "Terjadi kesalahan."
+            )
+        );
+    }
+}
+
+/* =========================================================
+   WHATSAPP PESANAN
+========================================================= */
+
+function openWhatsAppPesanan(
+    id
+) {
+
+    const item =
+        pesananData.find(
+            data =>
+                String(data.id) ===
+                String(id)
+        );
+
+
+    if (!item) {
+
+        alert(
+            "Pesanan tidak ditemukan."
+        );
+
+        return;
+    }
+
+
+    const phone =
+        normalizeWhatsApp(
+            item.nomor_whatsapp
+        );
+
+
+    if (!phone) {
+
+        alert(
+            "Nomor WhatsApp pembeli tidak tersedia."
+        );
+
+        return;
+    }
+
+
+    const message =
+`Assalamu'alaikum ${item.nama_pembeli || ""}.
+
+Kami dari Kampus Al-Qur'an Widya Silahudin Sidiq menghubungi terkait pesanan #${item.id}.
+
+Total pesanan: ${formatRupiah(item.total)}
+Status pesanan: ${item.status || "baru"}
+
+Terima kasih.`;
+
+
+    const url =
+        "https://wa.me/" +
+        phone +
+        "?text=" +
+        encodeURIComponent(
+            message
+        );
+
+
+    window.open(
+        url,
+        "_blank"
+    );
+}
+
+
+/* =========================================================
+   PESANAN EVENTS
+========================================================= */
+
+el("daftarPesanan")
+    ?.addEventListener(
+        "change",
+        event => {
+
+            const select =
+                event.target.closest(
+                    'select[data-action="status-pesanan"]'
+                );
+
+
+            if (!select) {
+                return;
+            }
+
+
+            updateStatusPesanan(
+                select.dataset.id,
+                select.value,
+                select
+            );
+        }
+    );
+
+
+el("daftarPesanan")
+    ?.addEventListener(
+        "click",
+        event => {
+
+            const button =
+                event.target.closest(
+                    "button[data-action]"
+                );
+
+
+            if (!button) {
+                return;
+            }
+
+
+            const id =
+                button.dataset.id;
+
+if (
+    button.dataset.action ===
+    "lihat-bukti-pembayaran"
+) {
+    lihatBuktiPembayaran(
+        id
+    );
+
+    return;
+}
+
+            if (
+                button.dataset.action ===
+                "whatsapp-pesanan"
+            ) {
+
+                openWhatsAppPesanan(
+                    id
+                );
+
+                return;
+            }
+
+
+            if (
+                button.dataset.action ===
+                "delete-pesanan"
+            ) {
+
+                openDeleteModal(
+                    "pesanan",
+                    id
+                );
+            }
+        }
+    );
+
+
+/* =========================================================
+   REFRESH PESANAN
+========================================================= */
+
+el("refreshPesanan")
+    ?.addEventListener(
+        "click",
+        async () => {
+
+            const button =
+                el(
+                    "refreshPesanan"
+                );
+
+
+            if (button) {
+
+                button.disabled =
+                    true;
+
+                button.textContent =
+                    "↻ Memuat...";
+            }
+
+
+            try {
+
+                await loadPesanan();
+
+                await updateDashboard();
+
+            } finally {
+
+                if (button) {
+
+                    button.disabled =
+                        false;
+
+                    button.textContent =
+                        "↻ Muat Ulang";
+                }
+            }
+        }
+    );
+
+
+/* =========================================================
+   DELETE MODAL
 ========================================================= */
 
 function openDeleteModal(
@@ -2203,9 +3494,13 @@ function openDeleteModal(
     id
 ) {
 
-    let item;
+    let item = null;
 
-    if (type === "kegiatan") {
+
+    if (
+        type ===
+        "kegiatan"
+    ) {
 
         item =
             kegiatanData.find(
@@ -2214,7 +3509,12 @@ function openDeleteModal(
                     String(id)
             );
 
-    } else {
+    }
+
+    else if (
+        type ===
+        "produk"
+    ) {
 
         item =
             produkData.find(
@@ -2222,7 +3522,22 @@ function openDeleteModal(
                     String(data.id) ===
                     String(id)
             );
+
     }
+
+    else if (
+        type ===
+        "pesanan"
+    ) {
+
+        item =
+            pesananData.find(
+                data =>
+                    String(data.id) ===
+                    String(id)
+            );
+    }
+
 
     if (!item) {
 
@@ -2233,76 +3548,94 @@ function openDeleteModal(
         return;
     }
 
+
     pendingDelete = {
+
         type,
         id,
         item
+
     };
 
-    const nama =
-        type === "kegiatan"
-            ? item.judul
-            : item.nama;
 
-    if (el("deleteModalText")) {
+    let nama =
+        "data ini";
 
-        el("deleteModalText")
-            .textContent =
-            'Yakin ingin menghapus "' +
-            (
-                nama ||
-                "data ini"
-            ) +
-            '"? Data yang sudah dihapus tidak dapat dikembalikan.';
+
+    if (
+        type ===
+        "kegiatan"
+    ) {
+
+        nama =
+            item.judul ||
+            "Kegiatan";
     }
 
-    el("deleteModal")
-        ?.classList
-        .remove("hidden");
 
-    document.body.style.overflow =
-        "hidden";
-}
+    if (
+        type ===
+        "produk"
+    ) {
 
-
-function closeDeleteModal() {
-
-    el("deleteModal")
-        ?.classList
-        .add("hidden");
-
-    pendingDelete = null;
-
-    document.body.style.overflow =
-        "";
-}
+        nama =
+            item.nama ||
+            "Produk";
+    }
 
 
-if (el("cancelDeleteButton")) {
+    if (
+        type ===
+        "pesanan"
+    ) {
 
-    el("cancelDeleteButton")
-        .addEventListener(
-            "click",
-            closeDeleteModal
-        );
-}
+        nama =
+            `Pesanan #${item.id}`;
+    }
 
 
-if (el("deleteModalBackground")) {
+    if (
+        el("deleteItemName")
+    ) {
 
-    el("deleteModalBackground")
-        .addEventListener(
-            "click",
-            closeDeleteModal
-        );
+        el("deleteItemName")
+            .textContent =
+            nama;
+    }
+
+
+    openModal(
+        "deleteModal"
+    );
 }
 
 
 /* =========================================================
-   HAPUS KEGIATAN
+   CANCEL DELETE
 ========================================================= */
 
-async function deleteKegiatan(info) {
+el("cancelDeleteButton")
+    ?.addEventListener(
+        "click",
+        () => {
+
+            pendingDelete =
+                null;
+
+            closeModal(
+                "deleteModal"
+            );
+        }
+    );
+
+
+/* =========================================================
+   DELETE KEGIATAN
+========================================================= */
+
+async function deleteKegiatan(
+    info
+) {
 
     const {
         error
@@ -2315,38 +3648,34 @@ async function deleteKegiatan(info) {
                 info.id
             );
 
+
     if (error) {
         throw error;
     }
 
-    if (info.item?.foto_url) {
 
-        await removeStorageByUrl(
+    if (
+        info.item?.foto_url
+    ) {
+
+        await deleteStorageFileFromURL(
+            "kegiatan",
             info.item.foto_url
         );
     }
 
-    if (
-        String(
-            el("editKegiatanId")
-                ?.value || ""
-        ) ===
-        String(info.id)
-    ) {
-
-        resetKegiatanForm();
-    }
 
     await loadKegiatan();
-    await updateDashboard();
 }
 
 
 /* =========================================================
-   HAPUS PRODUK
+   DELETE PRODUK
 ========================================================= */
 
-async function deleteProduk(info) {
+async function deleteProduk(
+    info
+) {
 
     const {
         error
@@ -2359,170 +3688,170 @@ async function deleteProduk(info) {
                 info.id
             );
 
+
     if (error) {
         throw error;
     }
 
-    if (info.item?.foto_url) {
 
-        await removeStorageByUrl(
+    if (
+        info.item?.foto_url
+    ) {
+
+        await deleteStorageFileFromURL(
+            "produk",
             info.item.foto_url
         );
     }
 
-    if (
-        String(
-            el("editProdukId")
-                ?.value || ""
-        ) ===
-        String(info.id)
-    ) {
-
-        resetProdukForm();
-    }
 
     await loadProduk();
-    await updateDashboard();
 }
 
 
 /* =========================================================
-   KONFIRMASI HAPUS
+   DELETE PESANAN
 ========================================================= */
 
-if (el("confirmDeleteButton")) {
+async function deletePesanan(
+    info
+) {
 
-    el("confirmDeleteButton")
-        .addEventListener(
-            "click",
-            async () => {
+    const {
+        error
+    } =
+        await supabaseClient
+            .from("pesanan")
+            .delete()
+            .eq(
+                "id",
+                info.id
+            );
 
-                if (!pendingDelete) {
-                    return;
-                }
 
-                const info =
-                    pendingDelete;
+    if (error) {
+        throw error;
+    }
 
-                const button =
-                    el("confirmDeleteButton");
 
-                button.disabled = true;
-
-                button.textContent =
-                    "Menghapus...";
-
-                try {
-
-                    if (
-                        info.type ===
-                        "kegiatan"
-                    ) {
-
-                        await deleteKegiatan(
-                            info
-                        );
-
-                    } else {
-
-                        await deleteProduk(
-                            info
-                        );
-                    }
-
-                    closeDeleteModal();
-
-                } catch (error) {
-
-                    console.error(
-                        "Delete error:",
-                        error
-                    );
-
-                    alert(
-                        "❌ " +
-                        (
-                            error.message ||
-                            "Data gagal dihapus."
-                        )
-                    );
-
-                } finally {
-
-                    button.disabled = false;
-
-                    button.textContent =
-                        "Ya, Hapus";
-                }
-            }
-        );
+    await loadPesanan();
 }
 
 
 /* =========================================================
-   REFRESH
+   CONFIRM DELETE
 ========================================================= */
 
-if (el("refreshKegiatan")) {
+el("confirmDeleteButton")
+    ?.addEventListener(
+        "click",
+        async () => {
 
-    el("refreshKegiatan")
-        .addEventListener(
-            "click",
-            async () => {
-
-                const button =
-                    el("refreshKegiatan");
-
-                button.disabled = true;
-
-                button.textContent =
-                    "↻ Memuat...";
-
-                try {
-
-                    await loadKegiatan();
-
-                } finally {
-
-                    button.disabled = false;
-
-                    button.textContent =
-                        "↻ Muat Ulang";
-                }
+            if (
+                !pendingDelete
+            ) {
+                return;
             }
-        );
-}
 
 
-if (el("refreshProduk")) {
+            const button =
+                el(
+                    "confirmDeleteButton"
+                );
 
-    el("refreshProduk")
-        .addEventListener(
-            "click",
-            async () => {
 
-                const button =
-                    el("refreshProduk");
+            const info =
+                pendingDelete;
 
-                button.disabled = true;
 
-                button.textContent =
-                    "↻ Memuat...";
+            setButtonLoading(
+                button,
+                true,
+                "Ya, Hapus",
+                "Menghapus..."
+            );
 
-                try {
 
-                    await loadProduk();
+            try {
 
-                } finally {
+                if (
+                    info.type ===
+                    "kegiatan"
+                ) {
 
-                    button.disabled = false;
-
-                    button.textContent =
-                        "↻ Muat Ulang";
+                    await deleteKegiatan(
+                        info
+                    );
                 }
+
+
+                else if (
+                    info.type ===
+                    "produk"
+                ) {
+
+                    await deleteProduk(
+                        info
+                    );
+                }
+
+
+                else if (
+                    info.type ===
+                    "pesanan"
+                ) {
+
+                    await deletePesanan(
+                        info
+                    );
+                }
+
+
+                pendingDelete =
+                    null;
+
+
+                closeModal(
+                    "deleteModal"
+                );
+
+
+                await updateDashboard();
+
+
+                alert(
+                    "✅ Data berhasil dihapus."
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    "Delete error:",
+                    error
+                );
+
+
+                alert(
+                    "❌ Data gagal dihapus.\n\n" +
+                    (
+                        error.message ||
+                        "Terjadi kesalahan."
+                    )
+                );
+
+            } finally {
+
+                setButtonLoading(
+                    button,
+                    false,
+                    "Ya, Hapus",
+                    "Menghapus..."
+                );
             }
-        );
-}
+
+        }
+    );
 
 
 /* =========================================================
@@ -2535,31 +3864,74 @@ async function updateDashboard() {
 
         const [
             kegiatanResult,
-            produkResult
+            produkResult,
+            pesananResult,
+            pesananBaruResult
         ] =
             await Promise.all([
+
 
                 supabaseClient
                     .from("kegiatan")
                     .select(
                         "id",
                         {
-                            count: "exact",
-                            head: true
+                            count:
+                                "exact",
+
+                            head:
+                                true
                         }
                     ),
+
 
                 supabaseClient
                     .from("produk")
                     .select(
                         "id",
                         {
-                            count: "exact",
-                            head: true
+                            count:
+                                "exact",
+
+                            head:
+                                true
                         }
+                    ),
+
+
+                supabaseClient
+                    .from("pesanan")
+                    .select(
+                        "id",
+                        {
+                            count:
+                                "exact",
+
+                            head:
+                                true
+                        }
+                    ),
+
+
+                supabaseClient
+                    .from("pesanan")
+                    .select(
+                        "id",
+                        {
+                            count:
+                                "exact",
+
+                            head:
+                                true
+                        }
+                    )
+                    .eq(
+                        "status",
+                        "baru"
                     )
 
             ]);
+
 
         if (
             !kegiatanResult.error &&
@@ -2568,8 +3940,10 @@ async function updateDashboard() {
 
             el("jumlahKegiatan")
                 .textContent =
-                kegiatanResult.count || 0;
+                kegiatanResult.count ||
+                0;
         }
+
 
         if (
             !produkResult.error &&
@@ -2578,13 +3952,70 @@ async function updateDashboard() {
 
             el("jumlahProduk")
                 .textContent =
-                produkResult.count || 0;
+                produkResult.count ||
+                0;
         }
+
+
+        if (
+            !pesananResult.error &&
+            el("jumlahPesanan")
+        ) {
+
+            el("jumlahPesanan")
+                .textContent =
+                pesananResult.count ||
+                0;
+        }
+
+
+        if (
+            !pesananBaruResult.error
+        ) {
+
+            const jumlahBaru =
+                pesananBaruResult.count ||
+                0;
+
+
+            if (
+                el(
+                    "jumlahPesananBaru"
+                )
+            ) {
+
+                el(
+                    "jumlahPesananBaru"
+                ).textContent =
+                    jumlahBaru;
+            }
+
+
+            const badge =
+                el(
+                    "sidebarPesananBaru"
+                );
+
+
+            if (badge) {
+
+                badge.textContent =
+                    jumlahBaru;
+
+
+                badge.classList
+                    .toggle(
+                        "hidden",
+                        jumlahBaru <= 0
+                    );
+            }
+        }
+
 
     } catch (error) {
 
         console.warn(
-            "Counter dashboard error:",
+            "Dashboard counter error:",
             error
         );
     }
@@ -2592,98 +4023,226 @@ async function updateDashboard() {
 
 
 /* =========================================================
-   LOAD SEMUA
+   LOAD SEMUA DATA
 ========================================================= */
 
 async function loadAll() {
 
     await Promise.all([
-        loadKegiatan(),
-        loadProduk()
-    ]);
 
-    await updateDashboard();
+        loadKegiatan(),
+
+        loadProduk(),
+
+        loadPesanan(),
+
+        updateDashboard()
+
+    ]);
 }
 
 
 /* =========================================================
-   ESC
+   ESC CLOSE MODAL
 ========================================================= */
 
 document.addEventListener(
     "keydown",
     event => {
 
-        if (event.key !== "Escape") {
+        if (
+            event.key !==
+            "Escape"
+        ) {
             return;
         }
 
+
         if (
-            el("deleteModal") &&
             !el("deleteModal")
-                .classList
+                ?.classList
                 .contains("hidden")
         ) {
 
-            closeDeleteModal();
+            pendingDelete =
+                null;
+
+            closeModal(
+                "deleteModal"
+            );
 
             return;
         }
 
+
         if (
-            el("editKegiatanId")
-                ?.value
+            !el("kegiatanModal")
+                ?.classList
+                .contains("hidden")
         ) {
 
-            resetKegiatanForm();
+            closeModal(
+                "kegiatanModal"
+            );
 
             return;
         }
 
+
         if (
-            el("editProdukId")
-                ?.value
+            !el("produkModal")
+                ?.classList
+                .contains("hidden")
         ) {
 
-            resetProdukForm();
+            closeModal(
+                "produkModal"
+            );
         }
     }
 );
 
 
 /* =========================================================
-   AUTH STATE
+   CHECK SESSION
 ========================================================= */
 
-supabaseClient.auth.onAuthStateChange(
-    (
-        event,
-        session
-    ) => {
+async function checkSession() {
+
+    try {
 
         if (
-            event === "SIGNED_OUT"
+            typeof supabaseClient ===
+            "undefined"
         ) {
 
-            showLoginPage();
+            throw new Error(
+                "supabaseClient tidak ditemukan. Periksa supabase-config.js."
+            );
         }
 
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .auth
+                .getSession();
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        const session =
+            data?.session;
+
+
         if (
-            event === "SIGNED_IN" &&
             session
         ) {
 
-            showAdminPage();
+            showAdmin();
+
+
+            if (
+                el("adminEmail")
+            ) {
+
+                el("adminEmail")
+                    .textContent =
+                    session.user
+                        ?.email ||
+                    "Administrator";
+            }
+
+
+            showPage(
+                "dashboard"
+            );
+
+
+            await loadAll();
+
+
+        } else {
+
+            showLogin();
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Check session error:",
+            error
+        );
+
+
+        showLogin();
+
+
+        if (
+            el("loginMessage")
+        ) {
+
+            el("loginMessage")
+                .textContent =
+                error.message ||
+                "Gagal menghubungkan Admin Dashboard.";
         }
     }
-);
+}
 
 
 /* =========================================================
-   MULAI
+   AUTH STATE CHANGE
 ========================================================= */
 
-updateKegiatanCounter();
-updateProdukCounter();
+if (
+    typeof supabaseClient !==
+    "undefined"
+) {
 
-checkLogin();
+    supabaseClient
+        .auth
+        .onAuthStateChange(
+            (
+                event,
+                session
+            ) => {
+
+                if (
+                    event ===
+                    "SIGNED_OUT"
+                ) {
+
+                    showLogin();
+
+                    return;
+                }
+
+
+                if (
+                    session &&
+                    el("adminEmail")
+                ) {
+
+                    el("adminEmail")
+                        .textContent =
+                        session.user
+                            ?.email ||
+                        "Administrator";
+                }
+            }
+        );
+}
+
+
+/* =========================================================
+   START ADMIN
+========================================================= */
+
+checkSession();

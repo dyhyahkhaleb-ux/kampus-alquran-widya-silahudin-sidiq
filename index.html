@@ -665,30 +665,24 @@
 
     <div class="container">
 
-
         <div class="section-heading">
 
             <span class="section-label">
                 Dokumentasi
             </span>
 
-
             <h2>
                 Kegiatan Kampus
             </h2>
 
-
             <p>
-
                 Dokumentasi kegiatan belajar,
                 pendidikan, kebersamaan dan aktivitas
                 para santri di Kampus Al-Qur'an
                 Widya Silahudin Shidiq.
-
             </p>
 
         </div>
-
 
 
         <!--
@@ -701,7 +695,7 @@
 
         <div
             class="gallery-grid"
-            id="galleryGrid"
+            id="activityGallery"
         >
 
             <div class="loading-data">
@@ -718,12 +712,9 @@
 
         </div>
 
-
     </div>
 
 </section>
-
-
 
 <!-- =========================================================
      TOKO KARYA SANTRI
@@ -1298,7 +1289,298 @@
 
 </div>
 
+<!-- =========================================================
+     PEMBAYARAN / UPLOAD BUKTI
+========================================================= -->
 
+<div
+    class="payment-modal"
+    id="paymentModal"
+>
+
+    <div class="payment-card">
+
+        <!-- HEADER -->
+        <div class="payment-header">
+
+            <div>
+                <span class="payment-success-icon">
+                    ✓
+                </span>
+
+                <h3>
+                    Pesanan Berhasil
+                </h3>
+
+                <p>
+                    Selesaikan pembayaran untuk pesanan Anda.
+                </p>
+            </div>
+
+            <button
+                type="button"
+                class="close-payment"
+                id="closePayment"
+                aria-label="Tutup pembayaran"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- INFORMASI PESANAN -->
+        <div class="payment-order-info">
+
+            <div class="payment-info-row">
+
+                <span>
+                    Kode Pesanan
+                </span>
+
+                <strong id="paymentOrderCode">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="payment-info-row">
+
+                <span>
+                    Total Pembayaran
+                </span>
+
+                <strong id="paymentOrderTotal">
+                    Rp0
+                </strong>
+
+            </div>
+
+
+            <div class="payment-info-row">
+
+                <span>
+                    Status
+                </span>
+
+                <strong
+                    class="payment-status"
+                    id="paymentStatus"
+                >
+                    Belum Bayar
+                </strong>
+
+            </div>
+
+        </div>
+
+
+        <!-- CARA PEMBAYARAN -->
+        <div class="payment-section">
+
+            <span class="payment-section-label">
+                CARA PEMBAYARAN
+            </span>
+
+            <h4>
+                Transfer Pembayaran
+            </h4>
+
+            <p class="payment-description">
+                Silakan transfer sesuai total pesanan.
+                Setelah melakukan pembayaran, upload
+                bukti transfer melalui form di bawah.
+            </p>
+
+
+            <!--
+                NANTI DATA REKENING BISA KITA UBAH
+                SESUAI REKENING KAMPUS.
+            -->
+
+            <div class="payment-bank">
+
+                <div class="payment-bank-icon">
+                    🏦
+                </div>
+
+                <div class="payment-bank-data">
+
+                    <small>
+                        Rekening Pembayaran
+                    </small>
+
+                    <strong id="paymentBankName">
+                        BANK BELUM DIATUR
+                    </strong>
+
+                    <span id="paymentBankNumber">
+                        -
+                    </span>
+
+                    <small id="paymentBankOwner">
+                        a.n. Kampus Al-Qur'an Widya Silahudin Shidiq
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- UPLOAD BUKTI -->
+        <div class="payment-section">
+
+            <span class="payment-section-label">
+                BUKTI PEMBAYARAN
+            </span>
+
+            <h4>
+                Upload Bukti Transfer
+            </h4>
+
+            <p class="payment-description">
+                Gunakan foto atau screenshot bukti
+                pembayaran yang jelas.
+            </p>
+
+
+            <div
+                class="payment-upload"
+                id="paymentUploadArea"
+            >
+
+                <input
+                    type="file"
+                    id="paymentProofInput"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                >
+
+
+                <button
+                    type="button"
+                    class="payment-file-button"
+                    id="paymentChooseFile"
+                >
+
+                    <span>
+                        📷
+                    </span>
+
+                    <strong>
+                        Pilih Bukti Pembayaran
+                    </strong>
+
+                    <small>
+                        JPG, PNG atau WEBP
+                    </small>
+
+                </button>
+
+
+                <!-- PREVIEW -->
+                <div
+                    class="payment-preview"
+                    id="paymentPreview"
+                    hidden
+                >
+
+                    <img
+                        id="paymentPreviewImage"
+                        src=""
+                        alt="Preview bukti pembayaran"
+                    >
+
+                    <div class="payment-preview-info">
+
+                        <strong id="paymentFileName">
+                            -
+                        </strong>
+
+                        <small id="paymentFileSize">
+                            -
+                        </small>
+
+                    </div>
+
+
+                    <button
+                        type="button"
+                        class="payment-remove-file"
+                        id="paymentRemoveFile"
+                    >
+                        Hapus
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- ERROR -->
+            <div
+                class="payment-message payment-error"
+                id="paymentError"
+                hidden
+            >
+            </div>
+
+
+            <!-- SUCCESS -->
+            <div
+                class="payment-message payment-success"
+                id="paymentSuccess"
+                hidden
+            >
+            </div>
+
+        </div>
+
+
+        <!-- ACTION -->
+        <div class="payment-actions">
+
+            <button
+                type="button"
+                class="payment-submit"
+                id="paymentSubmit"
+            >
+                Kirim Bukti Pembayaran
+            </button>
+
+
+            <button
+                type="button"
+                class="payment-whatsapp"
+                id="paymentWhatsapp"
+            >
+                💬 Hubungi via WhatsApp
+            </button>
+
+        </div>
+
+
+        <!-- CATATAN -->
+        <div class="payment-note">
+
+            <strong>
+                Penting
+            </strong>
+
+            <p>
+                Simpan kode pesanan Anda.
+                Bukti pembayaran akan diperiksa
+                oleh admin sebelum pesanan diproses.
+            </p>
+
+        </div>
+
+    </div>
+
+</div>
 
 <!-- =========================================================
      SUPABASE LIBRARY
